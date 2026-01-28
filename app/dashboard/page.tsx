@@ -12,25 +12,25 @@ const stats = [
     title: 'System Integrity',
     value: '100%',
     icon: ShieldCheck,
-    color: 'text-emerald-500',
+    color: 'text-[#E10600]',
   },
   {
     title: 'Active Nodes',
     value: '14',
     icon: Server,
-    color: 'text-foreground',
+    color: 'text-white',
   },
   {
     title: 'Encryption Protocol',
     value: 'AES-256-GCM',
     icon: Lock,
-    color: 'text-blue-500',
+    color: 'text-white',
   },
   {
     title: 'Threats Blocked',
     value: '3',
     icon: AlertTriangle,
-    color: 'text-red-500',
+    color: 'text-[#E10600]',
   },
 ]
 
@@ -56,15 +56,16 @@ function StatCard({
   color: string
 }) {
   return (
-    <Card className="bg-card border-border">
+    <Card className="bg-zinc-950 border-2 border-zinc-800 overflow-hidden">
+      <div className="h-1 bg-gradient-to-r from-[#E10600] via-red-600 to-[#E10600]" />
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground font-mono">
+        <CardTitle className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
           {title}
         </CardTitle>
         <Icon className={`size-5 ${color}`} />
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-bold font-mono ${color}`}>{value}</div>
+        <div className={`text-2xl font-black ${color}`}>{value}</div>
       </CardContent>
     </Card>
   )
@@ -74,11 +75,11 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground font-mono">
+      <div className="border-l-4 border-[#E10600] pl-4">
+        <h1 className="text-3xl font-black text-white uppercase tracking-tight">
           Mission Control
         </h1>
-        <p className="text-sm text-muted-foreground font-mono mt-1">
+        <p className="text-sm text-zinc-400 font-semibold mt-1 uppercase tracking-wide">
           F1 Secure Gateway Dashboard
         </p>
       </div>
@@ -91,32 +92,33 @@ export default function DashboardPage() {
       </div>
 
       {/* Live System Feed */}
-      <Card className="bg-card border-border">
+      <Card className="bg-zinc-950 border-2 border-zinc-800 overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-[#E10600] via-red-600 to-[#E10600]" />
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-mono text-foreground">
+            <CardTitle className="text-lg font-black text-white uppercase tracking-wide">
               Live System Feed
             </CardTitle>
             <div className="flex items-center gap-2">
               <span className="relative flex size-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
-                <span className="relative inline-flex rounded-full size-2 bg-success" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E10600] opacity-75" />
+                <span className="relative inline-flex rounded-full size-2 bg-[#E10600]" />
               </span>
-              <span className="text-xs font-mono text-success">LIVE</span>
+              <span className="text-xs font-black text-[#E10600] uppercase tracking-wider">LIVE</span>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {recentEvents.map((event, index) => (
               <div
                 key={index}
-                className="flex items-start gap-4 p-3 rounded-md bg-background border border-border"
+                className="flex items-start gap-4 p-3 bg-black border-l-2 border-zinc-800 hover:border-[#E10600] transition-all"
               >
-                <span className="text-xs font-mono text-muted-foreground shrink-0">
+                <span className="text-xs font-bold text-[#E10600] shrink-0 uppercase tracking-wider">
                   {event.time}
                 </span>
-                <span className="text-sm font-mono text-foreground">
+                <span className="text-sm font-semibold text-zinc-300">
                   {event.message}
                 </span>
               </div>

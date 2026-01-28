@@ -54,13 +54,13 @@ const telemetryData = [
 function ClassificationBadge({ classification }: { classification: string }) {
   if (classification === 'Top Secret') {
     return (
-      <Badge className="bg-red-500/20 text-red-500 hover:bg-red-500/30 border-red-500/50 font-mono">
+      <Badge className="bg-[#E10600] text-white hover:bg-red-700 border-2 border-[#E10600] font-black uppercase tracking-wider">
         {classification}
       </Badge>
     )
   }
   return (
-    <Badge className="bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30 border-yellow-500/50 font-mono">
+    <Badge className="bg-zinc-800 text-yellow-500 hover:bg-zinc-700 border-2 border-yellow-500 font-black uppercase tracking-wider">
       {classification}
     </Badge>
   )
@@ -70,48 +70,49 @@ export default function TelemetryPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground font-mono">
+      <div className="border-l-4 border-[#E10600] pl-4">
+        <h1 className="text-2xl font-black text-white uppercase tracking-tight">
           Telemetry Repository
         </h1>
-        <p className="text-sm text-muted-foreground font-mono mt-1">
+        <p className="text-sm text-zinc-400 font-medium mt-1 uppercase tracking-wider">
           Secure data packets from all connected teams
         </p>
       </div>
 
       {/* Telemetry Table */}
-      <div className="rounded-lg border border-border bg-card">
+      <div className="bg-zinc-950 border-2 border-zinc-800 overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-[#E10600] via-red-600 to-[#E10600]"></div>
         <Table>
           <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="font-mono text-muted-foreground">ID</TableHead>
-              <TableHead className="font-mono text-muted-foreground">Filename</TableHead>
-              <TableHead className="font-mono text-muted-foreground">Owner</TableHead>
-              <TableHead className="font-mono text-muted-foreground">Classification</TableHead>
-              <TableHead className="font-mono text-muted-foreground">Hash</TableHead>
-              <TableHead className="font-mono text-muted-foreground text-right">Actions</TableHead>
+            <TableRow className="border-zinc-800 hover:bg-transparent">
+              <TableHead className="font-black text-zinc-400 uppercase tracking-wider">ID</TableHead>
+              <TableHead className="font-black text-zinc-400 uppercase tracking-wider">Filename</TableHead>
+              <TableHead className="font-black text-zinc-400 uppercase tracking-wider">Owner</TableHead>
+              <TableHead className="font-black text-zinc-400 uppercase tracking-wider">Classification</TableHead>
+              <TableHead className="font-black text-zinc-400 uppercase tracking-wider">Hash</TableHead>
+              <TableHead className="font-black text-zinc-400 uppercase tracking-wider text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {telemetryData.map((item) => (
-              <TableRow key={item.id} className="border-border hover:bg-secondary/50">
-                <TableCell className="font-mono text-foreground">{item.id}</TableCell>
-                <TableCell className="font-mono text-foreground">{item.filename}</TableCell>
-                <TableCell className="font-mono text-muted-foreground">{item.owner}</TableCell>
+              <TableRow key={item.id} className="border-zinc-800 hover:bg-zinc-900 transition-colors">
+                <TableCell className="font-bold text-white">{item.id}</TableCell>
+                <TableCell className="font-bold text-white">{item.filename}</TableCell>
+                <TableCell className="font-medium text-zinc-400">{item.owner}</TableCell>
                 <TableCell>
                   <ClassificationBadge classification={item.classification} />
                 </TableCell>
-                <TableCell className="font-mono text-muted-foreground text-xs">
+                <TableCell className="font-mono text-zinc-500 text-xs">
                   {item.hash}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <Button variant="destructive" size="sm" className="font-mono" asChild>
+                    <Button size="sm" className="bg-[#E10600] hover:bg-red-700 text-white font-black uppercase tracking-wider shadow-lg shadow-red-900/50" asChild>
                       <Link href={`/dashboard/telemetry/${item.id}`}>
                         Decrypt
                       </Link>
                     </Button>
-                    <Button variant="ghost" size="icon" className="size-8">
+                    <Button variant="ghost" size="icon" className="size-8 hover:bg-zinc-800 hover:text-[#E10600] transition-colors">
                       <Share2 className="size-4" />
                       <span className="sr-only">Share</span>
                     </Button>

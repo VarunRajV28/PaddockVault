@@ -1,0 +1,8 @@
+# Backend
+*.pyc
+__pycache__/
+*.db
+venv/
+env/
+.env
+instance/

@@ -80,11 +80,11 @@ export default function UploadPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground font-mono">
+      <div className="border-l-4 border-[#E10600] pl-4">
+        <h1 className="text-2xl font-black text-white uppercase tracking-tight">
           Secure Upload
         </h1>
-        <p className="text-sm text-muted-foreground font-mono mt-1">
+        <p className="text-sm text-zinc-400 font-medium mt-1 uppercase tracking-wider">
           Encrypt and transmit telemetry data to the gateway
         </p>
       </div>
@@ -92,9 +92,10 @@ export default function UploadPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Upload Zone */}
         <div className="lg:col-span-2">
-          <Card className="bg-card border-border">
+          <Card className="bg-zinc-950 border-2 border-zinc-800">
+            <div className="h-1 bg-gradient-to-r from-[#E10600] via-red-600 to-[#E10600]"></div>
             <CardHeader>
-              <CardTitle className="text-lg font-mono text-foreground flex items-center gap-2">
+              <CardTitle className="text-lg font-black text-white uppercase tracking-wider flex items-center gap-2">
                 <FileUp className="size-5" />
                 Telemetry File
               </CardTitle>
@@ -105,15 +106,15 @@ export default function UploadPage() {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={`
-                  relative border-2 border-dashed rounded-lg p-12
+                  relative border-2 border-dashed p-12
                   flex flex-col items-center justify-center gap-4
                   transition-all duration-200 cursor-pointer
                   ${
                     isDragging
-                      ? 'border-primary bg-primary/10'
+                      ? 'border-[#E10600] bg-[#E10600]/10'
                       : file
-                        ? 'border-success bg-success/5'
-                        : 'border-border hover:border-muted-foreground'
+                        ? 'border-green-500 bg-green-500/5'
+                        : 'border-zinc-800 hover:border-[#E10600]'
                   }
                 `}
               >
@@ -126,12 +127,12 @@ export default function UploadPage() {
 
                 {file ? (
                   <>
-                    <div className="size-16 rounded-full bg-success/20 flex items-center justify-center">
-                      <FileUp className="size-8 text-success" />
+                    <div className="size-16 bg-green-500/20 flex items-center justify-center">
+                      <FileUp className="size-8 text-green-500" />
                     </div>
                     <div className="text-center">
-                      <p className="text-foreground font-mono">{file.name}</p>
-                      <p className="text-sm text-muted-foreground font-mono mt-1">
+                      <p className="text-white font-bold">{file.name}</p>
+                      <p className="text-sm text-zinc-400 font-medium mt-1">
                         {(file.size / 1024).toFixed(2)} KB
                       </p>
                     </div>
@@ -142,25 +143,25 @@ export default function UploadPage() {
                         e.stopPropagation()
                         setFile(null)
                       }}
-                      className="font-mono text-xs"
+                      className="font-black uppercase tracking-wider text-xs hover:bg-zinc-800 hover:text-[#E10600]"
                     >
                       Remove File
                     </Button>
                   </>
                 ) : (
                   <>
-                    <div className="size-16 rounded-full bg-secondary flex items-center justify-center">
-                      <Upload className="size-8 text-muted-foreground" />
+                    <div className="size-16 bg-zinc-800 flex items-center justify-center">
+                      <Upload className="size-8 text-zinc-400" />
                     </div>
                     <div className="text-center">
-                      <p className="text-foreground font-mono">
+                      <p className="text-white font-bold uppercase tracking-wider">
                         Drag & Drop Telemetry File
                       </p>
-                      <p className="text-sm text-muted-foreground font-mono mt-1">
+                      <p className="text-sm text-zinc-400 font-medium mt-1">
                         or click to browse
                       </p>
                     </div>
-                    <p className="text-xs text-muted-foreground font-mono">
+                    <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">
                       Supported: .json, .xml, .csv
                     </p>
                   </>
@@ -172,30 +173,31 @@ export default function UploadPage() {
 
         {/* Controls */}
         <div className="lg:col-span-1 space-y-6">
-          <Card className="bg-card border-border">
+          <Card className="bg-zinc-950 border-2 border-zinc-800">
+            <div className="h-1 bg-gradient-to-r from-[#E10600] via-red-600 to-[#E10600]"></div>
             <CardHeader>
-              <CardTitle className="text-lg font-mono text-foreground flex items-center gap-2">
+              <CardTitle className="text-lg font-black text-white uppercase tracking-wider flex items-center gap-2">
                 <Shield className="size-5" />
                 Classification
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="classification" className="font-mono text-xs text-muted-foreground">
+                <Label htmlFor="classification" className="font-black text-xs text-zinc-400 uppercase tracking-wider">
                   Classification Level
                 </Label>
                 <Select value={classification} onValueChange={setClassification}>
-                  <SelectTrigger className="w-full font-mono">
+                  <SelectTrigger className="w-full font-bold bg-black border-2 border-zinc-800 text-white focus:border-[#E10600]">
                     <SelectValue placeholder="Select level" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="public" className="font-mono">
+                    <SelectItem value="public" className="font-bold">
                       Public
                     </SelectItem>
-                    <SelectItem value="restricted" className="font-mono">
+                    <SelectItem value="restricted" className="font-bold">
                       Restricted
                     </SelectItem>
-                    <SelectItem value="top-secret" className="font-mono">
+                    <SelectItem value="top-secret" className="font-bold">
                       Top Secret
                     </SelectItem>
                   </SelectContent>
@@ -204,16 +206,17 @@ export default function UploadPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border">
+          <Card className="bg-zinc-950 border-2 border-zinc-800">
+            <div className="h-1 bg-gradient-to-r from-[#E10600] via-red-600 to-[#E10600]"></div>
             <CardHeader>
-              <CardTitle className="text-lg font-mono text-foreground flex items-center gap-2">
+              <CardTitle className="text-lg font-black text-white uppercase tracking-wider flex items-center gap-2">
                 <Users className="size-5" />
                 Target Team
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="team" className="font-mono text-xs text-muted-foreground">
+                <Label htmlFor="team" className="font-black text-xs text-zinc-400 uppercase tracking-wider">
                   Destination Team
                 </Label>
                 <Input
@@ -221,7 +224,7 @@ export default function UploadPage() {
                   value={targetTeam}
                   onChange={(e) => setTargetTeam(e.target.value)}
                   placeholder="e.g., Scuderia Ferrari"
-                  className="font-mono"
+                  className="font-bold bg-black border-2 border-zinc-800 text-white placeholder:text-zinc-600 focus:border-[#E10600]"
                 />
               </div>
             </CardContent>
@@ -229,7 +232,7 @@ export default function UploadPage() {
 
           <Button
             onClick={handleUpload}
-            className="w-full font-mono"
+            className="w-full bg-[#E10600] hover:bg-red-700 text-white font-black uppercase tracking-wider shadow-lg shadow-red-900/50"
             size="lg"
           >
             <Upload className="size-4 mr-2" />

@@ -12,9 +12,9 @@ import {
   Menu,
   X,
   Upload,
-  LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { UserNav } from '@/components/user-nav'
 import { Toaster } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
 
@@ -38,19 +38,19 @@ function Sidebar({
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 h-screen bg-card border-r border-border transition-all duration-300',
+        'fixed left-0 top-0 z-40 h-screen bg-zinc-950 border-r-2 border-zinc-800 transition-all duration-300',
         expanded ? 'w-60' : 'w-16'
       )}
     >
       {/* Logo & Toggle */}
-      <div className="flex h-16 items-center justify-between px-4 border-b border-border">
+      <div className="flex h-16 items-center justify-between px-4 border-b-2 border-zinc-800 bg-black">
         {expanded && (
           <div className="flex items-center gap-2">
-            <div className="size-8 rounded bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">F1</span>
+            <div className="size-8 bg-[#E10600] flex items-center justify-center">
+              <span className="text-white font-black text-sm">F1</span>
             </div>
-            <span className="font-mono text-sm font-semibold text-foreground">
-              GATEWAY
+            <span className="text-sm font-black text-white uppercase tracking-wider">
+              Gateway
             </span>
           </div>
         )}
@@ -58,11 +58,14 @@ function Sidebar({
           variant="ghost"
           size="icon"
           onClick={onToggle}
-          className={cn('size-8', !expanded && 'mx-auto')}
+          className={cn('size-8 hover:bg-zinc-800 hover:text-white', !expanded && 'mx-auto')}
         >
           {expanded ? <X className="size-4" /> : <Menu className="size-4" />}
         </Button>
       </div>
+
+      {/* Red accent bar */}
+      <div className="h-0.5 bg-gradient-to-r from-transparent via-[#E10600] to-transparent" />
 
       {/* Navigation */}
       <nav className="p-2 space-y-1">
@@ -73,10 +76,10 @@ function Sidebar({
               key={item.label}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 w-full rounded-md px-3 py-2 text-sm font-mono transition-colors',
+                'flex items-center gap-3 w-full px-3 py-3 text-sm font-bold uppercase tracking-wide transition-all',
                 isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                  ? 'bg-[#E10600] text-white border-l-4 border-white'
+                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white hover:border-l-4 hover:border-[#E10600]'
               )}
             >
               <item.icon className="size-5 shrink-0" />
@@ -89,17 +92,17 @@ function Sidebar({
       {/* System Status */}
       {expanded && (
         <div className="absolute bottom-4 left-4 right-4">
-          <div className="rounded-md bg-background p-3 border border-border">
-            <div className="flex items-center gap-2">
+          <div className="bg-black p-4 border-2 border-zinc-800">
+            <div className="flex items-center gap-2 mb-2">
               <span className="relative flex size-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
-                <span className="relative inline-flex rounded-full size-2 bg-success" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E10600] opacity-75" />
+                <span className="relative inline-flex rounded-full size-2 bg-[#E10600]" />
               </span>
-              <span className="text-xs font-mono text-success">
+              <span className="text-xs font-black text-[#E10600] uppercase tracking-wide">
                 System Secure
               </span>
             </div>
-            <p className="text-xs text-muted-foreground font-mono mt-1">
+            <p className="text-xs text-zinc-500 font-semibold">
               All protocols nominal
             </p>
           </div>
@@ -111,11 +114,6 @@ function Sidebar({
 
 function TopBar({ sidebarExpanded }: { sidebarExpanded: boolean }) {
   const pathname = usePathname()
-  const router = useRouter()
-
-  const handleLogout = () => {
-    router.push('/login')
-  }
 
   const getBreadcrumbs = () => {
     if (pathname === '/dashboard') {
@@ -139,20 +137,23 @@ function TopBar({ sidebarExpanded }: { sidebarExpanded: boolean }) {
   return (
     <header
       className={cn(
-        'fixed top-0 right-0 z-30 h-16 bg-card border-b border-border flex items-center justify-between px-6 transition-all duration-300',
+        'fixed top-0 right-0 z-30 h-16 bg-zinc-950 border-b-2 border-zinc-800 flex items-center justify-between px-6 transition-all duration-300',
         sidebarExpanded ? 'left-60' : 'left-16'
       )}
     >
+      {/* Red accent bar at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#E10600] to-transparent" />
+      
       {/* Breadcrumbs */}
-      <nav className="flex items-center gap-1 text-sm font-mono">
+      <nav className="flex items-center gap-1 text-sm font-bold">
         {breadcrumbs.map((crumb, index) => (
           <React.Fragment key={crumb}>
-            {index > 0 && <ChevronRight className="size-4 text-muted-foreground" />}
+            {index > 0 && <ChevronRight className="size-4 text-zinc-600" />}
             <span
               className={
                 index === breadcrumbs.length - 1
-                  ? 'text-foreground'
-                  : 'text-muted-foreground'
+                  ? 'text-white uppercase tracking-wide'
+                  : 'text-zinc-500 uppercase tracking-wide'
               }
             >
               {crumb}
@@ -161,30 +162,8 @@ function TopBar({ sidebarExpanded }: { sidebarExpanded: boolean }) {
         ))}
       </nav>
 
-      {/* User Badge */}
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleLogout}
-          className="gap-2 font-mono text-muted-foreground hover:text-foreground"
-        >
-          <LogOut className="size-4" />
-          Logout
-        </Button>
-        <div className="text-right">
-          <p className="text-sm font-mono text-foreground">Varun</p>
-          <p className="text-xs font-mono text-muted-foreground">
-            Principal Engineer
-          </p>
-        </div>
-        <div className="relative">
-          <div className="size-10 rounded-full bg-secondary flex items-center justify-center border border-border">
-            <span className="text-sm font-semibold text-foreground">VP</span>
-          </div>
-          <span className="absolute bottom-0 right-0 block size-3 rounded-full bg-success ring-2 ring-card" />
-        </div>
-      </div>
+      {/* User Navigation */}
+      <UserNav />
     </header>
   )
 }
@@ -197,7 +176,7 @@ export default function DashboardLayout({
   const [sidebarExpanded, setSidebarExpanded] = React.useState(true)
 
   return (
-    <div className="min-h-screen bg-background scanlines">
+    <div className="min-h-screen bg-black">
       <Sidebar
         expanded={sidebarExpanded}
         onToggle={() => setSidebarExpanded(!sidebarExpanded)}
@@ -206,10 +185,19 @@ export default function DashboardLayout({
 
       <main
         className={cn(
-          'pt-16 transition-all duration-300',
+          'pt-16 transition-all duration-300 min-h-screen',
           sidebarExpanded ? 'pl-60' : 'pl-16'
         )}
       >
+        {/* F1-style background pattern */}
+        <div className="fixed inset-0 -z-10">
+          <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-black" />
+          <div className="absolute inset-0 opacity-10" style={{
+            backgroundImage: `linear-gradient(45deg, transparent 49%, #E10600 49%, #E10600 51%, transparent 51%),
+                             linear-gradient(-45deg, transparent 49%, #E10600 49%, #E10600 51%, transparent 51%)`,
+            backgroundSize: '60px 60px',
+          }} />
+        </div>
         <div className="p-6">{children}</div>
       </main>
 

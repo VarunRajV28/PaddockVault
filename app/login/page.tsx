@@ -2,32 +2,12 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { Shield } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
-const teams = [
-  { value: 'fia', label: 'FIA' },
-  { value: 'ferrari', label: 'Ferrari' },
-  { value: 'redbull', label: 'Red Bull' },
-  { value: 'mclaren', label: 'McLaren' },
-]
-
-// Hardcoded credentials for each team
-const credentials = {
-  fia: { username: 'admin', password: 'fia123' },
-  ferrari: { username: 'admin', password: 'ferrari123' },
-  mclaren: { username: 'admin', password: 'mclaren123' },
-  redbull: { username: 'admin', password: 'redbull123' },
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -35,141 +15,175 @@ export default function LoginPage() {
   const [error, setError] = React.useState('')
   const [username, setUsername] = React.useState('')
   const [password, setPassword] = React.useState('')
-  const [team, setTeam] = React.useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setIsLoading(true)
     
-    // Validate credentials
-    const teamCreds = credentials[team as keyof typeof credentials]
-    if (!teamCreds || username !== teamCreds.username || password !== teamCreds.password) {
+    try {
+      const response = await fetch(`${API_URL}/api/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Login failed')
+        setIsLoading(false)
+        return
+      }
+
+      if (data.mfa_required) {
+        // Store user info in sessionStorage for MFA verification
+        sessionStorage.setItem('mfa_user', JSON.stringify({
+          user_id: data.user_id,
+          username: data.username,
+          team: data.team,
+        }))
+        // Also save to localStorage for persistent session
+        localStorage.setItem('f1_user', data.username)
+        localStorage.setItem('f1_team', data.team)
+        router.push('/auth/mfa')
+      } else {
+        // Direct login without MFA (shouldn't happen with our setup)
+        localStorage.setItem('f1_user', data.username)
+        localStorage.setItem('f1_team', data.team)
+        router.push('/dashboard')
+      }
+    } catch (err) {
+      console.error('Login error:', err)
+      setError('Failed to connect to server. Please ensure the backend is running.')
       setIsLoading(false)
-      setError('Invalid credentials. Please check your username, password, and team selection.')
-      return
     }
-    
-    // Simulate handshake delay
-    setTimeout(() => {
-      router.push('/auth/mfa')
-    }, 1500)
   }
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden">
-      {/* Background Image with Dark Overlay */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: 'url(https://images.unsplash.com/photo-1541443131876-44b03de101c5?q=80&w=2070&auto=format&fit=crop)',
-        }}
-      />
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-black">
+      {/* F1-style Background Pattern */}
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-black" />
+        <div className="absolute inset-0 opacity-20" style={{
+          backgroundImage: `linear-gradient(45deg, transparent 49%, #E10600 49%, #E10600 51%, transparent 51%),
+                           linear-gradient(-45deg, transparent 49%, #E10600 49%, #E10600 51%, transparent 51%)`,
+          backgroundSize: '60px 60px',
+        }} />
+      </div>
 
-      {/* Glassmorphism Card */}
+      {/* Red accent bar at top */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#E10600] to-transparent" />
+
+      {/* Main Card */}
       <div className="relative z-10 w-full max-w-md mx-4">
-        <div className="backdrop-blur-md bg-black/50 border border-border rounded-lg p-8 shadow-2xl">
-          {/* Header */}
-          <div className="flex flex-col items-center gap-3 mb-8">
-            <div className="size-14 rounded-full bg-primary/20 flex items-center justify-center border border-primary/50">
-              <Shield className="size-7 text-primary" />
-            </div>
-            <h1 className="text-xl font-bold font-mono text-foreground tracking-wider">
-              FIA TELEMETRY ACCESS
-            </h1>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Error Message */}
-            {error && (
-              <div className="p-3 bg-destructive/20 border border-destructive/50 rounded text-destructive text-sm font-mono">
-                {error}
+        <div className="bg-zinc-950 border-2 border-zinc-800 shadow-2xl overflow-hidden">
+          {/* Red accent bar */}
+          <div className="h-2 bg-gradient-to-r from-[#E10600] via-red-600 to-[#E10600]" />
+          
+          <div className="p-10">
+            {/* Header */}
+            <div className="flex flex-col items-center gap-4 mb-10">
+              <div className="relative w-48 h-24 flex items-center justify-center">
+                <img
+                  src="/fia-logo.svg"
+                  alt="FIA Logo"
+                  className="w-full h-full object-contain"
+                />
               </div>
-            )}
-
-            {/* Username Input */}
-            <div className="space-y-2">
-              <Label htmlFor="username" className="text-sm font-mono text-muted-foreground">
-                USERNAME / TEAM ID
-              </Label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="Enter credentials..."
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="h-12 bg-black/30 border-0 border-b-2 border-muted rounded-none font-mono text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:border-primary transition-colors"
-              />
+              <div className="text-center">
+                <h1 className="text-2xl font-black text-white tracking-tight uppercase">
+                  Telemetry Access
+                </h1>
+                <div className="h-0.5 w-16 bg-[#E10600] mx-auto mt-2" />
+              </div>
             </div>
 
-            {/* Password Input */}
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-mono text-muted-foreground">
-                PASSWORD
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••••••"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-12 bg-black/30 border-0 border-b-2 border-muted rounded-none font-mono text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:border-primary transition-colors"
-              />
-            </div>
-
-            {/* Team Select */}
-            <div className="space-y-2">
-              <Label htmlFor="team" className="text-sm font-mono text-muted-foreground">
-                TEAM IDENTITY
-              </Label>
-              <Select required value={team} onValueChange={setTeam}>
-                <SelectTrigger 
-                  id="team"
-                  className="h-12 bg-black/30 border-0 border-b-2 border-muted rounded-none font-mono text-foreground focus:ring-0 focus:border-primary transition-colors"
-                >
-                  <SelectValue placeholder="Select team..." />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border font-mono">
-                  {teams.map((team) => (
-                    <SelectItem 
-                      key={team.value} 
-                      value={team.value}
-                      className="font-mono"
-                    >
-                      {team.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-mono font-bold tracking-wider text-sm"
-            >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <span className="size-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                  INITIATING...
-                </span>
-              ) : (
-                'INITIATE HANDSHAKE'
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Error Message */}
+              {error && (
+                <div className="p-4 bg-red-950 border-l-4 border-[#E10600] text-red-200 text-sm font-semibold">
+                  {error}
+                </div>
               )}
-            </Button>
-          </form>
 
-          {/* Footer */}
-          <p className="text-center text-xs font-mono text-muted-foreground mt-6">
-            Authorized personnel only. All access is logged.
-          </p>
+              {/* Username Input */}
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                  Team Username
+                </Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Enter team username"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  className="h-14 bg-black border-2 border-zinc-800 text-white text-lg font-medium placeholder:text-zinc-600 focus-visible:ring-0 focus-visible:border-[#E10600] transition-all"
+                />
+              </div>
+
+              {/* Password Input */}
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-14 bg-black border-2 border-zinc-800 text-white text-lg font-medium placeholder:text-zinc-600 focus-visible:ring-0 focus-visible:border-[#E10600] transition-all"
+                />
+              </div>
+
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-14 bg-[#E10600] hover:bg-red-700 text-white font-black tracking-wide text-base uppercase shadow-lg shadow-red-900/50 transition-all hover:shadow-xl hover:shadow-red-900/70 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="size-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                    Authenticating
+                  </span>
+                ) : (
+                  'Access System'
+                )}
+              </Button>
+            </form>
+
+            {/* Footer */}
+            <div className="mt-8 space-y-4">
+              <div className="h-px bg-gradient-to-r from-transparent via-zinc-800 to-transparent" />
+              <p className="text-center text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                Authorized Access Only
+              </p>
+              <div className="flex justify-center gap-6 text-sm font-bold">
+                <Link href="/register" className="text-[#E10600] hover:text-red-500 transition-colors uppercase tracking-wide">
+                  Register
+                </Link>
+                <span className="text-zinc-700">•</span>
+                <Link href="/setup-2fa" className="text-zinc-400 hover:text-white transition-colors uppercase tracking-wide">
+                  Setup 2FA
+                </Link>
+              </div>
+            </div>
+          </div>
+          
+          {/* Bottom red accent bar */}
+          <div className="h-2 bg-gradient-to-r from-[#E10600] via-red-600 to-[#E10600]" />
         </div>
       </div>
+      
+      {/* Red accent bar at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#E10600] to-transparent" />
     </div>
   )
 }
