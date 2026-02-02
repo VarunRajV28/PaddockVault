@@ -2,6 +2,7 @@ import React from "react"
 import type { Metadata, Viewport } from 'next'
 import { JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'] })
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${jetbrainsMono.className} antialiased`}>
         {children}
+        <Toaster position="top-right" theme="dark" richColors />
         <Analytics />
       </body>
     </html>

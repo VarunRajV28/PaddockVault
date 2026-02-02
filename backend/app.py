@@ -8,6 +8,9 @@ import base64
 from datetime import datetime, timedelta
 import jwt
 import os
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.backends import default_backend
 
 app = Flask(__name__)
 CORS(app)
@@ -26,6 +29,8 @@ class User(db.Model):
     password = db.Column(db.String(200), nullable=False)  # In production, hash this!
     team = db.Column(db.String(50), nullable=False)
     totp_secret = db.Column(db.String(32), nullable=False)
+    public_key = db.Column(db.Text, nullable=False)  # RSA public key in PEM format
+    private_key = db.Column(db.Text, nullable=False)  # RSA private key in PEM format
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Composite unique constraint on username + team
@@ -38,6 +43,62 @@ class User(db.Model):
         self.password = password  # Remember to hash in production!
         self.team = team
         self.totp_secret = pyotp.random_base32()
+        
+        # Generate RSA key pair (2048-bit)
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+        public_key = private_key.public_key()
+        
+        # Serialize keys to PEM format
+        self.private_key = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        ).decode('utf-8')
+        
+        self.public_key = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode('utf-8')
+
+# TelemetryData Model
+class TelemetryData(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(200), nullable=False)
+    owner_team = db.Column(db.String(50), nullable=False)
+    classification = db.Column(db.String(20), nullable=False)  # 'Confidential' or 'Public'
+    content = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'filename': self.filename,
+            'owner_team': self.owner_team,
+            'classification': self.classification,
+            'content': self.content,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+# SharedAccess Model
+class SharedAccess(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    file_id = db.Column(db.Integer, db.ForeignKey('telemetry_data.id'), nullable=False)
+    shared_with_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    encrypted_key = db.Column(db.Text, nullable=False)  # File's key encrypted with recipient's public key
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'file_id': self.file_id,
+            'shared_with_user_id': self.shared_with_user_id,
+            'encrypted_key': self.encrypted_key,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
 
 # Create tables
 with app.app_context():
@@ -236,6 +297,197 @@ def get_qr_code():
         'success': True,
         'qr_code': qr_code
     }), 200
+
+@app.route('/api/seed', methods=['POST'])
+def seed_telemetry():
+    """Seed the database with exactly 3 test telemetry objects"""
+    try:
+        # Wipe all existing telemetry data
+        TelemetryData.query.delete()
+        
+        # Insert exactly 3 specific objects
+        test_objects = [
+            TelemetryData(
+                filename='ferrari_strategy_monza.json',
+                owner_team='ferrari',
+                classification='Confidential',
+                content='{"strategy": "two-stop", "tire_compound": "soft-medium-soft", "fuel_load": "105kg"}'
+            ),
+            TelemetryData(
+                filename='redbull_engine_map.json',
+                owner_team='redbull',
+                classification='Confidential',
+                content='{"engine_mode": "qualifying", "ers_deployment": "aggressive", "power_unit": "Honda RBPT"}'
+            ),
+            TelemetryData(
+                filename='fia_race_regulations.pdf',
+                owner_team='fia',
+                classification='Public',
+                content='{"regulation": "2024 Technical Regulations", "version": "1.0", "effective_date": "2024-01-01"}'
+            )
+        ]
+        
+        for obj in test_objects:
+            db.session.add(obj)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Telemetry data seeded successfully',
+            'count': len(test_objects)
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Failed to seed data',
+            'details': str(e)
+        }), 500
+
+@app.route('/api/telemetry', methods=['GET'])
+def get_telemetry():
+    """Get telemetry data with access control based on user's team"""
+    try:
+        # Extract user identity from headers
+        user_team = request.headers.get('X-User-Team', '').lower()
+        user_name = request.headers.get('X-User-Name', '')
+        
+        if not user_team:
+            return jsonify({'error': 'Missing user team header'}), 400
+        
+        print(f"Telemetry access request - User: {user_name}, Team: {user_team}")  # Debug log
+        
+        # Get current user
+        current_user = User.query.filter_by(username=user_name, team=user_team).first()
+        
+        # The Bouncer Logic
+        if user_team == 'fia':
+            # FIA Admin: Return ALL files
+            telemetry_files = TelemetryData.query.all()
+            print(f"FIA access granted - returning {len(telemetry_files)} files")
+        else:
+            # Team Principal: Return their team's files + Public files + Shared files
+            if current_user:
+                # Get file IDs that have been shared with this user
+                shared_file_ids = db.session.query(SharedAccess.file_id).filter(
+                    SharedAccess.shared_with_user_id == current_user.id
+                ).all()
+                shared_file_ids = [fid[0] for fid in shared_file_ids]
+                
+                # Query: Own team's files OR Public files OR Shared files
+                telemetry_files = TelemetryData.query.filter(
+                    db.or_(
+                        TelemetryData.owner_team == user_team,  # Own team's files
+                        TelemetryData.classification == 'Public',  # Public files
+                        TelemetryData.id.in_(shared_file_ids) if shared_file_ids else False  # Shared files
+                    )
+                ).all()
+            else:
+                # Fallback if user not found
+                telemetry_files = TelemetryData.query.filter(
+                    db.or_(
+                        TelemetryData.owner_team == user_team,
+                        TelemetryData.classification == 'Public'
+                    )
+                ).all()
+            print(f"Team {user_team} access - returning {len(telemetry_files)} files")
+        
+        # Convert to dict format
+        result = [file.to_dict() for file in telemetry_files]
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        print(f"Error in get_telemetry: {str(e)}")
+        return jsonify({
+            'error': 'Failed to retrieve telemetry data',
+            'details': str(e)
+        }), 500
+
+
+@app.route('/api/telemetry/share', methods=['POST'])
+def share_telemetry():
+    """Share a telemetry file with another team using RSA key exchange"""
+    try:
+        data = request.get_json()
+        
+        file_id = data.get('file_id')
+        recipient_team = data.get('recipient_team', '').lower()
+        sender_username = data.get('sender_username', '').lower()
+        
+        if not all([file_id, recipient_team, sender_username]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        print(f"Share request - File: {file_id}, From: {sender_username}, To: {recipient_team}")
+        
+        # 1. Authorization: Verify sender owns the file
+        telemetry_file = TelemetryData.query.get(file_id)
+        if not telemetry_file:
+            return jsonify({'error': 'File not found'}), 404
+        
+        sender_user = User.query.filter_by(username=sender_username).first()
+        if not sender_user:
+            return jsonify({'error': 'Sender not found'}), 404
+        
+        if telemetry_file.owner_team != sender_user.team:
+            return jsonify({'error': 'Unauthorized: You do not own this file'}), 403
+        
+        # 2. Recipient Lookup: Find a user from the recipient team
+        recipient_user = User.query.filter_by(team=recipient_team).first()
+        if not recipient_user:
+            return jsonify({'error': f'No user found for team {recipient_team}'}), 404
+        
+        # 3. Check if already shared
+        existing_share = SharedAccess.query.filter_by(
+            file_id=file_id,
+            shared_with_user_id=recipient_user.id
+        ).first()
+        if existing_share:
+            return jsonify({'error': 'File already shared with this team'}), 409
+        
+        # 4. RSA Encryption: Encrypt dummy AES key with recipient's public key
+        dummy_aes_key = "AES_KEY_SECRET_123"
+        
+        # Load recipient's public key
+        recipient_public_key = serialization.load_pem_public_key(
+            recipient_user.public_key.encode('utf-8'),
+            backend=default_backend()
+        )
+        
+        # Encrypt using RSA with PKCS1v15 padding
+        encrypted_key = recipient_public_key.encrypt(
+            dummy_aes_key.encode('utf-8'),
+            padding.PKCS1v15()
+        )
+        
+        # Base64 encode for storage
+        encrypted_key_b64 = base64.b64encode(encrypted_key).decode('utf-8')
+        
+        # 5. Save to SharedAccess table
+        new_share = SharedAccess(
+            file_id=file_id,
+            shared_with_user_id=recipient_user.id,
+            encrypted_key=encrypted_key_b64
+        )
+        db.session.add(new_share)
+        db.session.commit()
+        
+        print(f"✓ File {file_id} shared with {recipient_team} (User ID: {recipient_user.id})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'File successfully shared with {recipient_team.upper()}',
+            'encrypted_key_length': len(encrypted_key_b64)
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in share_telemetry: {str(e)}")
+        return jsonify({
+            'error': 'Failed to share file',
+            'details': str(e)
+        }), 500
 
 @app.route('/api/health', methods=['GET'])
 def health():

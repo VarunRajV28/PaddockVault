@@ -20,24 +20,33 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setIsLoading(true)
-    
+
     try {
+      // In our backend, username === team (e.g., 'ferrari', 'redbull', 'fia')
+      const team = username.toLowerCase()
+
       const response = await fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({
+          username,
+          password,
+          team // Include team field as required by backend
+        }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        setError(data.error || 'Login failed')
+        // Handle 401/403 errors with backend error messages
+        setError(data.error || 'Invalid credentials')
         setIsLoading(false)
         return
       }
 
+      // Handle 200 response
       if (data.mfa_required) {
         // Store user info in sessionStorage for MFA verification
         sessionStorage.setItem('mfa_user', JSON.stringify({
@@ -45,19 +54,22 @@ export default function LoginPage() {
           username: data.username,
           team: data.team,
         }))
-        // Also save to localStorage for persistent session
+        // Save to localStorage (keys: 'f1_user', 'f1_team')
         localStorage.setItem('f1_user', data.username)
         localStorage.setItem('f1_team', data.team)
+        // Redirect to /auth/mfa
         router.push('/auth/mfa')
       } else {
         // Direct login without MFA (shouldn't happen with our setup)
         localStorage.setItem('f1_user', data.username)
         localStorage.setItem('f1_team', data.team)
+        // Redirect to /dashboard
         router.push('/dashboard')
       }
     } catch (err) {
       console.error('Login error:', err)
-      setError('Failed to connect to server. Please ensure the backend is running.')
+      // Network error handling
+      setError('Backend Offline - Failed to connect to server. Please ensure the backend is running.')
       setIsLoading(false)
     }
   }
@@ -82,7 +94,7 @@ export default function LoginPage() {
         <div className="bg-zinc-950 border-2 border-zinc-800 shadow-2xl overflow-hidden">
           {/* Red accent bar */}
           <div className="h-2 bg-gradient-to-r from-[#E10600] via-red-600 to-[#E10600]" />
-          
+
           <div className="p-10">
             {/* Header */}
             <div className="flex flex-col items-center gap-4 mb-10">
@@ -176,12 +188,12 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
-          
+
           {/* Bottom red accent bar */}
           <div className="h-2 bg-gradient-to-r from-[#E10600] via-red-600 to-[#E10600]" />
         </div>
       </div>
-      
+
       {/* Red accent bar at bottom */}
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#E10600] to-transparent" />
     </div>
