@@ -46,19 +46,28 @@ function Sidebar({
       <div className="flex h-16 items-center justify-between px-4 border-b-2 border-zinc-800 bg-black">
         {expanded && (
           <div className="flex items-center gap-2">
-            <div className="size-8 bg-[#E10600] flex items-center justify-center">
-              <span className="text-white font-black text-sm">F1</span>
-            </div>
+            <img 
+              src="/f1-logo.svg" 
+              alt="F1 Logo" 
+              className="h-8 w-auto"
+            />
             <span className="text-sm font-black text-white uppercase tracking-wider">
               Gateway
             </span>
           </div>
         )}
+        {!expanded && (
+          <img 
+            src="/f1-logo.svg" 
+            alt="F1 Logo" 
+            className="h-6 w-auto mx-auto"
+          />
+        )}
         <Button
           variant="ghost"
           size="icon"
           onClick={onToggle}
-          className={cn('size-8 hover:bg-zinc-800 hover:text-white', !expanded && 'mx-auto')}
+          className={cn('size-8 hover:bg-zinc-800 hover:text-white', !expanded && 'hidden')}
         >
           {expanded ? <X className="size-4" /> : <Menu className="size-4" />}
         </Button>

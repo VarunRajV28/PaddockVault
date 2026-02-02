@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80">
+  <!-- Main red parallelogram background -->
+  <path fill="#E10600" d="M 10 80 L 70 0 L 190 0 L 130 80 Z"/>
+  
+  <!-- Top white speed line -->
+  <rect fill="#FFFFFF" x="85" y="18" width="70" height="8" transform="skewX(-25)"/>
+  
+  <!-- Middle white speed line -->
+  <rect fill="#FFFFFF" x="80" y="35" width="70" height="8" transform="skewX(-25)"/>
+  
+  <!-- Bottom white speed line -->
+  <rect fill="#FFFFFF" x="75" y="52" width="70" height="8" transform="skewX(-25)"/>
+</svg>
