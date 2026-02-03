@@ -1,4 +1,6 @@
-import React from "react"
+'use client'
+
+import React, { useEffect, useState } from "react"
 import {
   ShieldCheck,
   Server,
@@ -7,42 +9,16 @@ import {
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-const stats = [
-  {
-    title: 'System Integrity',
-    value: '100%',
-    icon: ShieldCheck,
-    color: 'text-[#E10600]',
-  },
-  {
-    title: 'Active Nodes',
-    value: '14',
-    icon: Server,
-    color: 'text-white',
-  },
-  {
-    title: 'Encryption Protocol',
-    value: 'AES-256-GCM',
-    icon: Lock,
-    color: 'text-white',
-  },
-  {
-    title: 'Threats Blocked',
-    value: '3',
-    icon: AlertTriangle,
-    color: 'text-[#E10600]',
-  },
-]
-
-const recentEvents = [
-  { time: '14:32:01', message: 'User Varun accessed Telemetry Repository' },
-  { time: '14:31:45', message: 'Key Exchange initiated with Node-07' },
-  { time: '14:30:22', message: 'Encrypted packet PKT-0847 verified' },
-  { time: '14:29:58', message: 'System integrity check completed' },
-  { time: '14:28:12', message: 'New session established: AES-256-GCM' },
-  { time: '14:27:44', message: 'Threat blocked: Unauthorized access attempt' },
-  { time: '14:26:33', message: 'Telemetry sync completed for Monza circuit' },
-]
+interface DashboardStats {
+  nodes: number
+  files: number
+  logs: Array<{
+    id: number
+    timestamp: string
+    user: string
+    action: string
+  }>
+}
 
 function StatCard({
   title,
@@ -72,6 +48,58 @@ function StatCard({
 }
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState<DashboardStats>({ nodes: 0, files: 0, logs: [] })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Fetch dashboard data from backend
+    fetch('http://localhost:5000/api/dashboard')
+      .then(res => res.json())
+      .then(data => {
+        setStats(data)
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error('Failed to fetch dashboard stats:', err)
+        setLoading(false)
+      })
+  }, [])
+
+  // Format UTC timestamp to user's local time
+  const formatLocalTime = (utcString: string) => {
+    // Append 'Z' to force UTC parsing if not already present
+    const isoString = utcString.endsWith('Z') ? utcString : utcString + 'Z'
+    const date = new Date(isoString)
+    return date.toLocaleTimeString('en-US', { hour12: false })
+  }
+
+  const statsCards = [
+    {
+      title: 'System Integrity',
+      value: '100%',
+      icon: ShieldCheck,
+      color: 'text-[#E10600]',
+    },
+    {
+      title: 'Active Nodes',
+      value: loading ? '...' : stats.nodes.toString(),
+      icon: Server,
+      color: 'text-white',
+    },
+    {
+      title: 'Encryption Protocol',
+      value: 'AES-256-GCM',
+      icon: Lock,
+      color: 'text-white',
+    },
+    {
+      title: 'Encrypted Files',
+      value: loading ? '...' : stats.files.toString(),
+      icon: AlertTriangle,
+      color: 'text-[#E10600]',
+    },
+  ]
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -86,7 +114,7 @@ export default function DashboardPage() {
 
       {/* Stats Cards Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {statsCards.map((stat) => (
           <StatCard key={stat.title} {...stat} />
         ))}
       </div>
@@ -110,19 +138,25 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {recentEvents.map((event, index) => (
-              <div
-                key={index}
-                className="flex items-start gap-4 p-3 bg-black border-l-2 border-zinc-800 hover:border-[#E10600] transition-all"
-              >
-                <span className="text-xs font-bold text-[#E10600] shrink-0 uppercase tracking-wider">
-                  {event.time}
-                </span>
-                <span className="text-sm font-semibold text-zinc-300">
-                  {event.message}
-                </span>
-              </div>
-            ))}
+            {loading ? (
+              <div className="text-center text-zinc-400 py-8">Loading activity logs...</div>
+            ) : stats.logs.length === 0 ? (
+              <div className="text-center text-zinc-400 py-8">No recent activity</div>
+            ) : (
+              stats.logs.map((event) => (
+                <div
+                  key={event.id}
+                  className="flex items-start gap-4 p-3 bg-black border-l-2 border-zinc-800 hover:border-[#E10600] transition-all"
+                >
+                  <span className="text-xs font-bold text-[#E10600] shrink-0 uppercase tracking-wider">
+                    {formatLocalTime(event.timestamp)}
+                  </span>
+                  <span className="text-sm font-semibold text-zinc-300">
+                    {event.user}: {event.action}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

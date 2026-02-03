@@ -105,6 +105,21 @@ class SharedAccess(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
+# AuditLog Model
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    user = db.Column(db.String(50), nullable=False)
+    action = db.Column(db.String(200), nullable=False)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'user': self.user,
+            'action': self.action
+        }
+
 # Create tables
 with app.app_context():
     # Drop all tables and recreate (only for development!)
@@ -283,6 +298,17 @@ def verify_signature(public_key_pem, data, signature_b64):
         print(f"Signature verification failed: {str(e)}")
         return False
 
+def log_audit_event(user, action):
+    """Log an audit event to the database"""
+    try:
+        log_entry = AuditLog(user=user, action=action)
+        db.session.add(log_entry)
+        db.session.commit()
+        print(f"✓ Audit log: {user} - {action}")
+    except Exception as e:
+        print(f"Failed to log audit event: {str(e)}")
+        db.session.rollback()
+
 def generate_token(user_id, username):
     """Generate JWT token"""
     payload = {
@@ -343,7 +369,11 @@ def login():
     user = User.query.filter_by(username=username, team=username).first()
     
     if not user or not check_password_hash(user.password, password):
+        log_audit_event(username, 'Failed Login Attempt')
         return jsonify({'error': 'Invalid credentials'}), 401
+    
+    # Log successful login
+    log_audit_event(username, 'User Logged In')
     
     # Store user info in session (simplified, use proper session management in production)
     return jsonify({
@@ -483,6 +513,9 @@ def seed_telemetry():
         
         db.session.commit()
         
+        # Log database seeding
+        log_audit_event('System', 'Database Seeded')
+        
         return jsonify({
             'success': True,
             'message': 'Telemetry data seeded successfully with AES-GCM encryption',
@@ -543,6 +576,9 @@ def get_telemetry():
                     )
                 ).all()
             print(f"Team {user_team} access - returning {len(telemetry_files)} files")
+        
+        # Log telemetry access
+        log_audit_event(user_name if user_name else user_team, 'Accessed Telemetry Repository')
         
         # Convert to dict format
         result = [file.to_dict() for file in telemetry_files]
@@ -625,6 +661,9 @@ def share_telemetry():
         db.session.commit()
         
         print(f"✓ File {file_id} shared with {recipient_team} (User ID: {recipient_user.id})")
+        
+        # Log sharing action
+        log_audit_event(sender_username, f'Shared {telemetry_file.filename} with {recipient_team}')
         
         return jsonify({
             'success': True,
@@ -732,6 +771,9 @@ def decrypt_telemetry():
             return jsonify({'error': 'Failed to decrypt content: Invalid key or corrupted data'}), 500
         
         print(f"✓ File {file_id} decrypted successfully for {username}")
+        
+        # Log decryption action
+        log_audit_event(username, f'Decrypted content of {telemetry_file.filename}')
         
         return jsonify({
             'success': True,
@@ -848,6 +890,10 @@ def verify_telemetry():
         
         print(f"✓ Signature verification for file {file_id}: {'VALID' if is_valid else 'INVALID'}")
         
+        # Log verification action
+        if is_valid:
+            log_audit_event(username, f'Verified integrity of {telemetry_file.filename}')
+        
         return jsonify({
             'valid': is_valid,
             'owner': telemetry_file.owner_team
@@ -857,6 +903,33 @@ def verify_telemetry():
         print(f"Error in verify_telemetry: {str(e)}")
         return jsonify({
             'error': 'Failed to verify file',
+            'details': str(e)
+        }), 500
+
+
+@app.route('/api/dashboard', methods=['GET'])
+def get_dashboard_stats():
+    """Get dashboard statistics and recent audit logs"""
+    try:
+        # Count active nodes (users)
+        node_count = User.query.count()
+        
+        # Count encrypted files
+        encrypted_count = TelemetryData.query.count()
+        
+        # Get last 10 audit logs
+        recent_logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(10).all()
+        
+        return jsonify({
+            'nodes': node_count,
+            'files': encrypted_count,
+            'logs': [log.to_dict() for log in recent_logs]
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in get_dashboard_stats: {str(e)}")
+        return jsonify({
+            'error': 'Failed to retrieve dashboard stats',
             'details': str(e)
         }), 500
 

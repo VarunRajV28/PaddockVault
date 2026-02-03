@@ -26,7 +26,7 @@ const getTeamConfig = (team: string) => {
     'haas': { bg: 'bg-gray-200', text: 'text-red-600', initial: 'H' },
     'williams': { bg: 'bg-blue-400', text: 'text-white', initial: 'W' },
   }
-  
+
   const normalized = team.toLowerCase().replace(/[^a-z]/g, '')
   return teamConfigs[normalized] || { bg: 'bg-zinc-900', text: 'text-white', initial: 'F' }
 }
@@ -42,7 +42,7 @@ export function UserNav() {
     // Read from localStorage
     const storedUser = localStorage.getItem('f1_user')
     const storedTeam = localStorage.getItem('f1_team')
-    
+
     if (storedUser && storedTeam) {
       setUser({
         username: storedUser,
@@ -55,7 +55,7 @@ export function UserNav() {
     // Clear all storage
     localStorage.clear()
     sessionStorage.clear()
-    
+
     // Redirect to login
     router.push('/login')
   }
@@ -65,7 +65,10 @@ export function UserNav() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-3 hover:bg-zinc-900 px-3 py-2 transition-colors group outline-none">
+        <button
+          className="flex items-center gap-3 hover:bg-zinc-900 px-3 py-2 transition-colors group outline-none"
+          suppressHydrationWarning
+        >
           <div className="text-right">
             <p className="text-sm font-black text-white uppercase tracking-wide font-mono">
               {user.team}
