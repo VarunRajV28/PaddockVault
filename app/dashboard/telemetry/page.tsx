@@ -85,6 +85,11 @@ export default function TelemetryPage() {
   const [selectedTeam, setSelectedTeam] = useState<string>('')
   const [sharing, setSharing] = useState(false)
 
+  // View dialog state
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [viewContent, setViewContent] = useState<string>('')
+  const [viewLoading, setViewLoading] = useState(false)
+
   const availableTeams = ['ferrari', 'redbull', 'mclaren', 'mercedes', 'fia']
 
   useEffect(() => {
@@ -200,6 +205,44 @@ export default function TelemetryPage() {
     }
   }
 
+  const handleViewClick = async (fileId: number) => {
+    setViewLoading(true)
+    setSelectedFileId(fileId)
+
+    try {
+      const f1_user = localStorage.getItem('f1_user') || ''
+
+      const response = await fetch('http://localhost:5000/api/telemetry/decrypt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file_id: fileId,
+          username: f1_user,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Decryption failed')
+      }
+
+      // Success! Show decrypted content
+      setViewContent(data.content)
+      setViewDialogOpen(true)
+    } catch (err: any) {
+      console.error('Error decrypting file:', err)
+      toast.error('⚠️ DECRYPTION FAILED: INVALID KEY', {
+        description: err.message || 'Unable to decrypt file content',
+        className: 'bg-red-600 text-white border-2 border-white font-black',
+      })
+    } finally {
+      setViewLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -262,10 +305,12 @@ export default function TelemetryPage() {
                       <div className="flex items-center justify-end gap-2">
                         <Button
                           size="sm"
+                          onClick={() => handleViewClick(item.id)}
+                          disabled={viewLoading && selectedFileId === item.id}
                           className="bg-[#E10600] hover:bg-red-700 text-white font-black uppercase tracking-wider shadow-lg shadow-red-900/50"
                         >
                           <Eye className="size-4 mr-1" />
-                          View
+                          {viewLoading && selectedFileId === item.id ? 'Decrypting...' : 'View'}
                         </Button>
                         {/* Show Share button only for files owned by current user */}
                         {item.owner_team.toLowerCase() === currentUserTeam && (
@@ -340,6 +385,37 @@ export default function TelemetryPage() {
               className="bg-[#E10600] hover:bg-red-700 text-white font-black uppercase tracking-wider shadow-lg shadow-red-900/50"
             >
               {sharing ? 'Transmitting...' : '🔐 Transmit Key'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="bg-zinc-950 border-2 border-[#E10600] text-white max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase tracking-wider text-[#E10600]">
+              🔓 DECRYPTED CONTENT
+            </DialogTitle>
+            <DialogDescription className="text-zinc-400 font-medium">
+              File content decrypted using AES-GCM with RSA key unwrapping
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <div className="bg-zinc-900 border border-zinc-700 rounded-md p-4 max-h-96 overflow-auto">
+              <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap break-words">
+                {viewContent}
+              </pre>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => setViewDialogOpen(false)}
+              className="bg-[#E10600] hover:bg-red-700 text-white font-black uppercase tracking-wider shadow-lg shadow-red-900/50"
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

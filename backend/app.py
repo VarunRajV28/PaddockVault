@@ -10,6 +10,7 @@ import jwt
 import os
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
 app = Flask(__name__)
@@ -70,7 +71,9 @@ class TelemetryData(db.Model):
     filename = db.Column(db.String(200), nullable=False)
     owner_team = db.Column(db.String(50), nullable=False)
     classification = db.Column(db.String(20), nullable=False)  # 'Confidential' or 'Public'
-    content = db.Column(db.Text, nullable=True)
+    content = db.Column(db.Text, nullable=True)  # Encrypted content (Base64)
+    nonce = db.Column(db.Text, nullable=True)  # GCM nonce (Base64)
+    encrypted_aes_key = db.Column(db.Text, nullable=True)  # AES key encrypted with owner's RSA public key (Base64)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -153,6 +156,60 @@ def generate_qr_code_base64(secret, username, issuer='F1 Telemetry'):
     img_str = base64.b64encode(buffer.getvalue()).decode()
     
     return f"data:image/png;base64,{img_str}"
+
+def encrypt_aes_gcm(plaintext, rsa_public_key_pem):
+    """
+    Encrypt plaintext using AES-GCM and wrap the AES key with RSA public key
+    
+    Args:
+        plaintext (str): The content to encrypt
+        rsa_public_key_pem (str): RSA public key in PEM format
+    
+    Returns:
+        dict: {
+            'ciphertext': Base64-encoded encrypted content,
+            'encrypted_key': Base64-encoded RSA-encrypted AES key,
+            'nonce': Base64-encoded GCM nonce
+        }
+    """
+    # Generate random 32-byte AES key and 12-byte nonce
+    aes_key = os.urandom(32)
+    nonce = os.urandom(12)
+    
+    # Encrypt plaintext using AES-GCM
+    cipher = Cipher(
+        algorithms.AES(aes_key),
+        modes.GCM(nonce),
+        backend=default_backend()
+    )
+    encryptor = cipher.encryptor()
+    ciphertext = encryptor.update(plaintext.encode('utf-8')) + encryptor.finalize()
+    
+    # Get the authentication tag
+    tag = encryptor.tag
+    
+    # Combine ciphertext and tag
+    ciphertext_with_tag = ciphertext + tag
+    
+    # Load RSA public key
+    public_key = serialization.load_pem_public_key(
+        rsa_public_key_pem.encode('utf-8'),
+        backend=default_backend()
+    )
+    
+    # Encrypt AES key using RSA with PKCS1v15 padding
+    encrypted_aes_key = public_key.encrypt(
+        aes_key,
+        padding.PKCS1v15()
+    )
+    
+    # Return Base64-encoded values
+    return {
+        'ciphertext': base64.b64encode(ciphertext_with_tag).decode('utf-8'),
+        'encrypted_key': base64.b64encode(encrypted_aes_key).decode('utf-8'),
+        'nonce': base64.b64encode(nonce).decode('utf-8')
+    }
+
 
 def generate_token(user_id, username):
     """Generate JWT token"""
@@ -300,42 +357,60 @@ def get_qr_code():
 
 @app.route('/api/seed', methods=['POST'])
 def seed_telemetry():
-    """Seed the database with exactly 3 test telemetry objects"""
+    """Seed the database with exactly 3 test telemetry objects (encrypted)"""
     try:
         # Wipe all existing telemetry data
         TelemetryData.query.delete()
         
-        # Insert exactly 3 specific objects
-        test_objects = [
-            TelemetryData(
-                filename='ferrari_strategy_monza.json',
-                owner_team='ferrari',
-                classification='Confidential',
-                content='{"strategy": "two-stop", "tire_compound": "soft-medium-soft", "fuel_load": "105kg"}'
-            ),
-            TelemetryData(
-                filename='redbull_engine_map.json',
-                owner_team='redbull',
-                classification='Confidential',
-                content='{"engine_mode": "qualifying", "ers_deployment": "aggressive", "power_unit": "Honda RBPT"}'
-            ),
-            TelemetryData(
-                filename='fia_race_regulations.pdf',
-                owner_team='fia',
-                classification='Public',
-                content='{"regulation": "2024 Technical Regulations", "version": "1.0", "effective_date": "2024-01-01"}'
-            )
+        # Define test data with plaintext content
+        test_data = [
+            {
+                'filename': 'ferrari_strategy_monza.json',
+                'owner_team': 'ferrari',
+                'classification': 'Confidential',
+                'plaintext': '{"strategy": "two-stop", "tire_compound": "soft-medium-soft", "fuel_load": "105kg"}'
+            },
+            {
+                'filename': 'redbull_engine_map.json',
+                'owner_team': 'redbull',
+                'classification': 'Confidential',
+                'plaintext': '{"engine_mode": "qualifying", "ers_deployment": "aggressive", "power_unit": "Honda RBPT"}'
+            },
+            {
+                'filename': 'fia_race_regulations.pdf',
+                'owner_team': 'fia',
+                'classification': 'Public',
+                'plaintext': '{"regulation": "2024 Technical Regulations", "version": "1.0", "effective_date": "2024-01-01"}'
+            }
         ]
         
-        for obj in test_objects:
-            db.session.add(obj)
+        # Encrypt and insert each file
+        for data in test_data:
+            # Get owner's public key
+            owner_user = User.query.filter_by(team=data['owner_team']).first()
+            if not owner_user:
+                raise Exception(f"Owner user not found for team: {data['owner_team']}")
+            
+            # Encrypt content using AES-GCM
+            encrypted_data = encrypt_aes_gcm(data['plaintext'], owner_user.public_key)
+            
+            # Create telemetry object with encrypted data
+            telemetry_obj = TelemetryData(
+                filename=data['filename'],
+                owner_team=data['owner_team'],
+                classification=data['classification'],
+                content=encrypted_data['ciphertext'],
+                nonce=encrypted_data['nonce'],
+                encrypted_aes_key=encrypted_data['encrypted_key']
+            )
+            db.session.add(telemetry_obj)
         
         db.session.commit()
         
         return jsonify({
             'success': True,
-            'message': 'Telemetry data seeded successfully',
-            'count': len(test_objects)
+            'message': 'Telemetry data seeded successfully with AES-GCM encryption',
+            'count': len(test_data)
         }), 201
         
     except Exception as e:
@@ -488,6 +563,112 @@ def share_telemetry():
             'error': 'Failed to share file',
             'details': str(e)
         }), 500
+
+@app.route('/api/telemetry/decrypt', methods=['POST'])
+def decrypt_telemetry():
+    """Decrypt a telemetry file using the user's RSA private key"""
+    try:
+        data = request.get_json()
+        
+        file_id = data.get('file_id')
+        username = data.get('username', '').lower()
+        
+        if not all([file_id, username]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        print(f"Decrypt request - File: {file_id}, User: {username}")
+        
+        # 1. Get the telemetry file
+        telemetry_file = TelemetryData.query.get(file_id)
+        if not telemetry_file:
+            return jsonify({'error': 'File not found'}), 404
+        
+        # 2. Get the requesting user
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # 3. Authorization: Check if user is owner OR has shared access
+        is_owner = telemetry_file.owner_team == user.team
+        shared_access = None
+        
+        if not is_owner:
+            shared_access = SharedAccess.query.filter_by(
+                file_id=file_id,
+                shared_with_user_id=user.id
+            ).first()
+            
+            if not shared_access:
+                return jsonify({'error': 'Unauthorized: You do not have access to this file'}), 403
+        
+        # 4. Get the encrypted AES key
+        if is_owner:
+            encrypted_aes_key_b64 = telemetry_file.encrypted_aes_key
+            print(f"Owner access - using file's encrypted key")
+        else:
+            encrypted_aes_key_b64 = shared_access.encrypted_key
+            print(f"Shared access - using shared encrypted key")
+        
+        if not encrypted_aes_key_b64:
+            return jsonify({'error': 'Encrypted key not found'}), 500
+        
+        # 5. Decrypt the AES key using user's RSA private key
+        encrypted_aes_key = base64.b64decode(encrypted_aes_key_b64)
+        
+        # Load user's private key
+        private_key = serialization.load_pem_private_key(
+            user.private_key.encode('utf-8'),
+            password=None,
+            backend=default_backend()
+        )
+        
+        # Decrypt AES key
+        try:
+            aes_key = private_key.decrypt(
+                encrypted_aes_key,
+                padding.PKCS1v15()
+            )
+        except Exception as e:
+            print(f"RSA decryption failed: {str(e)}")
+            return jsonify({'error': 'Failed to decrypt AES key: Invalid RSA key'}), 500
+        
+        # 6. Decrypt the content using AES-GCM
+        ciphertext_with_tag = base64.b64decode(telemetry_file.content)
+        nonce = base64.b64decode(telemetry_file.nonce)
+        
+        # Split ciphertext and tag (last 16 bytes are the tag)
+        ciphertext = ciphertext_with_tag[:-16]
+        tag = ciphertext_with_tag[-16:]
+        
+        # Create cipher and decrypt
+        cipher = Cipher(
+            algorithms.AES(aes_key),
+            modes.GCM(nonce, tag),
+            backend=default_backend()
+        )
+        decryptor = cipher.decryptor()
+        
+        try:
+            plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+            decrypted_content = plaintext.decode('utf-8')
+        except Exception as e:
+            print(f"AES-GCM decryption failed: {str(e)}")
+            return jsonify({'error': 'Failed to decrypt content: Invalid key or corrupted data'}), 500
+        
+        print(f"✓ File {file_id} decrypted successfully for {username}")
+        
+        return jsonify({
+            'success': True,
+            'content': decrypted_content
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in decrypt_telemetry: {str(e)}")
+        return jsonify({
+            'error': 'Failed to decrypt file',
+            'details': str(e)
+        }), 500
+
 
 @app.route('/api/health', methods=['GET'])
 def health():
