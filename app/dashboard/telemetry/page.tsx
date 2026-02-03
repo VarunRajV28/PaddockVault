@@ -28,6 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 
 interface TelemetryFile {
@@ -89,6 +91,8 @@ export default function TelemetryPage() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [viewContent, setViewContent] = useState<string>('')
   const [viewLoading, setViewLoading] = useState(false)
+  const [showRawMode, setShowRawMode] = useState(false)
+  const [viewRawContent, setViewRawContent] = useState<string>('')
 
   // Verify state
   const [verifyLoading, setVerifyLoading] = useState(false)
@@ -211,9 +215,16 @@ export default function TelemetryPage() {
   const handleViewClick = async (fileId: number) => {
     setViewLoading(true)
     setSelectedFileId(fileId)
+    setShowRawMode(false) // Reset toggle when opening new file
 
     try {
       const f1_user = localStorage.getItem('f1_user') || ''
+
+      // Find the file in telemetryData to get the raw Base64 content
+      const file = telemetryData.find(f => f.id === fileId)
+      if (file) {
+        setViewRawContent(file.content) // Store the Base64 encrypted content
+      }
 
       const response = await fetch('http://localhost:5000/api/telemetry/decrypt', {
         method: 'POST',
@@ -463,12 +474,43 @@ export default function TelemetryPage() {
             </DialogDescription>
           </DialogHeader>
 
+          {/* Toggle Switch */}
+          <div className="flex items-center space-x-3 px-6 py-3 bg-zinc-900 border-y border-zinc-800">
+            <Switch
+              id="raw-mode"
+              checked={showRawMode}
+              onCheckedChange={setShowRawMode}
+              className="data-[state=checked]:bg-orange-500"
+            />
+            <Label
+              htmlFor="raw-mode"
+              className="text-sm font-black uppercase tracking-wider text-zinc-300 cursor-pointer"
+            >
+              Show Raw Encoded Data (Base64)
+            </Label>
+          </div>
+
           <div className="py-4">
-            <div className="bg-zinc-900 border border-zinc-700 rounded-md p-4 max-h-96 overflow-auto">
-              <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap break-words">
-                {viewContent}
-              </pre>
-            </div>
+            {showRawMode ? (
+              // Raw Base64 Mode
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider text-orange-400 mb-2 px-6">
+                  Base64 Encoded Ciphertext
+                </p>
+                <div className="bg-zinc-900 border border-zinc-700 rounded-md p-4 mx-6 max-h-96 overflow-auto">
+                  <pre className="text-sm text-orange-400 font-mono whitespace-pre-wrap break-all">
+                    {viewRawContent}
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              // Decrypted Plaintext Mode
+              <div className="bg-zinc-900 border border-zinc-700 rounded-md p-4 mx-6 max-h-96 overflow-auto">
+                <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap break-words">
+                  {viewContent}
+                </pre>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
