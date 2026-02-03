@@ -8,6 +8,7 @@ import base64
 from datetime import datetime, timedelta
 import jwt
 import os
+from werkzeug.security import generate_password_hash, check_password_hash
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -74,6 +75,7 @@ class TelemetryData(db.Model):
     content = db.Column(db.Text, nullable=True)  # Encrypted content (Base64)
     nonce = db.Column(db.Text, nullable=True)  # GCM nonce (Base64)
     encrypted_aes_key = db.Column(db.Text, nullable=True)  # AES key encrypted with owner's RSA public key (Base64)
+    digital_signature = db.Column(db.Text, nullable=True)  # RSA-SHA256 signature of plaintext (Base64)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -121,7 +123,7 @@ with app.app_context():
     for user_data in default_users:
         new_user = User(
             username=user_data['username'],
-            password=user_data['password'],
+            password=generate_password_hash(user_data['password']),  # Hash the password
             team=user_data['team']
         )
         db.session.add(new_user)
@@ -211,6 +213,76 @@ def encrypt_aes_gcm(plaintext, rsa_public_key_pem):
     }
 
 
+def sign_data(private_key_pem, data):
+    """
+    Sign data using RSA-SHA256 digital signature
+    
+    Args:
+        private_key_pem (str): RSA private key in PEM format
+        data (str): The plaintext data to sign
+    
+    Returns:
+        str: Base64-encoded signature
+    """
+    # Load private key
+    private_key = serialization.load_pem_private_key(
+        private_key_pem.encode('utf-8'),
+        password=None,
+        backend=default_backend()
+    )
+    
+    # Sign the data using RSA-SHA256 with PSS padding
+    signature = private_key.sign(
+        data.encode('utf-8'),
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )
+    
+    # Return Base64-encoded signature
+    return base64.b64encode(signature).decode('utf-8')
+
+
+def verify_signature(public_key_pem, data, signature_b64):
+    """
+    Verify RSA-SHA256 digital signature
+    
+    Args:
+        public_key_pem (str): RSA public key in PEM format
+        data (str): The plaintext data that was signed
+        signature_b64 (str): Base64-encoded signature
+    
+    Returns:
+        bool: True if signature is valid, False otherwise
+    """
+    try:
+        # Load public key
+        public_key = serialization.load_pem_public_key(
+            public_key_pem.encode('utf-8'),
+            backend=default_backend()
+        )
+        
+        # Decode signature
+        signature = base64.b64decode(signature_b64)
+        
+        # Verify signature using RSA-SHA256 with PSS padding
+        public_key.verify(
+            signature,
+            data.encode('utf-8'),
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+        
+        return True
+    except Exception as e:
+        print(f"Signature verification failed: {str(e)}")
+        return False
+
 def generate_token(user_id, username):
     """Generate JWT token"""
     payload = {
@@ -242,7 +314,7 @@ def register():
         return jsonify({'error': 'Team already registered'}), 409
     
     # Create new user with TOTP secret
-    new_user = User(username=username, password=password, team=team)
+    new_user = User(username=username, password=generate_password_hash(password), team=team)
     db.session.add(new_user)
     db.session.commit()
     
@@ -270,7 +342,7 @@ def login():
     # Find user (username is the team name)
     user = User.query.filter_by(username=username, team=username).first()
     
-    if not user or user.password != password:  # In production, use proper password hashing
+    if not user or not check_password_hash(user.password, password):
         return jsonify({'error': 'Invalid credentials'}), 401
     
     # Store user info in session (simplified, use proper session management in production)
@@ -391,17 +463,21 @@ def seed_telemetry():
             if not owner_user:
                 raise Exception(f"Owner user not found for team: {data['owner_team']}")
             
+            # Sign the plaintext using owner's private key
+            signature = sign_data(owner_user.private_key, data['plaintext'])
+            
             # Encrypt content using AES-GCM
             encrypted_data = encrypt_aes_gcm(data['plaintext'], owner_user.public_key)
             
-            # Create telemetry object with encrypted data
+            # Create telemetry object with encrypted data and signature
             telemetry_obj = TelemetryData(
                 filename=data['filename'],
                 owner_team=data['owner_team'],
                 classification=data['classification'],
                 content=encrypted_data['ciphertext'],
                 nonce=encrypted_data['nonce'],
-                encrypted_aes_key=encrypted_data['encrypted_key']
+                encrypted_aes_key=encrypted_data['encrypted_key'],
+                digital_signature=signature
             )
             db.session.add(telemetry_obj)
         
@@ -666,6 +742,121 @@ def decrypt_telemetry():
         print(f"Error in decrypt_telemetry: {str(e)}")
         return jsonify({
             'error': 'Failed to decrypt file',
+            'details': str(e)
+        }), 500
+
+
+@app.route('/api/telemetry/verify', methods=['POST'])
+def verify_telemetry():
+    """Verify a telemetry file's digital signature"""
+    try:
+        data = request.get_json()
+        
+        file_id = data.get('file_id')
+        username = data.get('username', '').lower()
+        
+        if not all([file_id, username]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        print(f"Verify request - File: {file_id}, User: {username}")
+        
+        # 1. Get the telemetry file
+        telemetry_file = TelemetryData.query.get(file_id)
+        if not telemetry_file:
+            return jsonify({'error': 'File not found'}), 404
+        
+        # 2. Get the requesting user
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # 3. Authorization: Check if user is owner OR has shared access
+        is_owner = telemetry_file.owner_team == user.team
+        shared_access = None
+        
+        if not is_owner:
+            shared_access = SharedAccess.query.filter_by(
+                file_id=file_id,
+                shared_with_user_id=user.id
+            ).first()
+            
+            if not shared_access:
+                return jsonify({'error': 'Unauthorized: You do not have access to this file'}), 403
+        
+        # 4. Get the encrypted AES key
+        if is_owner:
+            encrypted_aes_key_b64 = telemetry_file.encrypted_aes_key
+        else:
+            encrypted_aes_key_b64 = shared_access.encrypted_key
+        
+        if not encrypted_aes_key_b64:
+            return jsonify({'error': 'Encrypted key not found'}), 500
+        
+        # 5. Decrypt the AES key using user's RSA private key
+        encrypted_aes_key = base64.b64decode(encrypted_aes_key_b64)
+        
+        private_key = serialization.load_pem_private_key(
+            user.private_key.encode('utf-8'),
+            password=None,
+            backend=default_backend()
+        )
+        
+        try:
+            aes_key = private_key.decrypt(
+                encrypted_aes_key,
+                padding.PKCS1v15()
+            )
+        except Exception as e:
+            print(f"RSA decryption failed: {str(e)}")
+            return jsonify({'error': 'Failed to decrypt AES key'}), 500
+        
+        # 6. Decrypt the content using AES-GCM
+        ciphertext_with_tag = base64.b64decode(telemetry_file.content)
+        nonce = base64.b64decode(telemetry_file.nonce)
+        
+        ciphertext = ciphertext_with_tag[:-16]
+        tag = ciphertext_with_tag[-16:]
+        
+        cipher = Cipher(
+            algorithms.AES(aes_key),
+            modes.GCM(nonce, tag),
+            backend=default_backend()
+        )
+        decryptor = cipher.decryptor()
+        
+        try:
+            plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+            decrypted_content = plaintext.decode('utf-8')
+        except Exception as e:
+            print(f"AES-GCM decryption failed: {str(e)}")
+            return jsonify({'error': 'Failed to decrypt content'}), 500
+        
+        # 7. Get owner's public key for signature verification
+        owner_user = User.query.filter_by(team=telemetry_file.owner_team).first()
+        if not owner_user:
+            return jsonify({'error': 'Owner user not found'}), 500
+        
+        # 8. Verify the digital signature
+        if not telemetry_file.digital_signature:
+            return jsonify({'error': 'No digital signature found'}), 500
+        
+        is_valid = verify_signature(
+            owner_user.public_key,
+            decrypted_content,
+            telemetry_file.digital_signature
+        )
+        
+        print(f"✓ Signature verification for file {file_id}: {'VALID' if is_valid else 'INVALID'}")
+        
+        return jsonify({
+            'valid': is_valid,
+            'owner': telemetry_file.owner_team
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in verify_telemetry: {str(e)}")
+        return jsonify({
+            'error': 'Failed to verify file',
             'details': str(e)
         }), 500
 

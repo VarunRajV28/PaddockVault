@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Eye, AlertTriangle, Share2 } from 'lucide-react'
+import { Eye, AlertTriangle, Share2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -89,6 +89,9 @@ export default function TelemetryPage() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [viewContent, setViewContent] = useState<string>('')
   const [viewLoading, setViewLoading] = useState(false)
+
+  // Verify state
+  const [verifyLoading, setVerifyLoading] = useState(false)
 
   const availableTeams = ['ferrari', 'redbull', 'mclaren', 'mercedes', 'fia']
 
@@ -243,6 +246,55 @@ export default function TelemetryPage() {
     }
   }
 
+  const handleVerifyClick = async (fileId: number) => {
+    setVerifyLoading(true)
+    setSelectedFileId(fileId)
+
+    try {
+      const f1_user = localStorage.getItem('f1_user') || ''
+
+      const response = await fetch('http://localhost:5000/api/telemetry/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file_id: fileId,
+          username: f1_user,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Verification failed')
+      }
+
+      // Check if signature is valid
+      if (data.valid) {
+        toast.success(`✅ INTEGRITY VERIFIED: Signed by ${data.owner.toUpperCase()}`, {
+          description: 'Digital signature matches - file is authentic',
+          className: 'bg-green-600 text-white border-2 border-white font-black',
+          duration: 5000,
+        })
+      } else {
+        toast.error('❌ INTEGRITY FAILURE: Digital Signature Mismatch', {
+          description: 'File may have been tampered with',
+          className: 'bg-red-600 text-white border-2 border-white font-black',
+          duration: 5000,
+        })
+      }
+    } catch (err: any) {
+      console.error('Error verifying file:', err)
+      toast.error('❌ INTEGRITY FAILURE: Digital Signature Mismatch', {
+        description: err.message || 'Unable to verify file signature',
+        className: 'bg-red-600 text-white border-2 border-white font-black',
+      })
+    } finally {
+      setVerifyLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -311,6 +363,15 @@ export default function TelemetryPage() {
                         >
                           <Eye className="size-4 mr-1" />
                           {viewLoading && selectedFileId === item.id ? 'Decrypting...' : 'View'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleVerifyClick(item.id)}
+                          disabled={verifyLoading && selectedFileId === item.id}
+                          className="bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-wider shadow-lg shadow-green-900/50"
+                        >
+                          <ShieldCheck className="size-4 mr-1" />
+                          {verifyLoading && selectedFileId === item.id ? 'Verifying...' : 'Verify'}
                         </Button>
                         {/* Show Share button only for files owned by current user */}
                         {item.owner_team.toLowerCase() === currentUserTeam && (
