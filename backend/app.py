@@ -934,6 +934,67 @@ def get_dashboard_stats():
         }), 500
 
 
+@app.route('/api/audit-logs', methods=['GET'])
+def get_audit_logs():
+    """Get recent audit logs for the logs page"""
+    try:
+        # Get last 100 audit logs
+        logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(100).all()
+        return jsonify([log.to_dict() for log in logs]), 200
+    except Exception as e:
+        print(f"Error in get_audit_logs: {str(e)}")
+        return jsonify({'error': 'Failed to retrieve audit logs'}), 500
+
+
+    except Exception as e:
+        print(f"Error in get_audit_logs: {str(e)}")
+        return jsonify({'error': 'Failed to retrieve audit logs'}), 500
+
+
+@app.route('/api/user/keys', methods=['GET'])
+def get_user_keys():
+    """Get the current user's public key based on headers"""
+    try:
+        user_team = request.headers.get('X-User-Team', '').lower()
+        user_name = request.headers.get('X-User-Name', '')
+        
+        if not user_name:
+            return jsonify({'error': 'Missing user identity'}), 400
+            
+        user = User.query.filter_by(username=user_name).first()
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+            
+        return jsonify({
+            'username': user.username,
+            'team': user.team,
+            'public_key': user.public_key
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in get_user_keys: {str(e)}")
+        return jsonify({'error': 'Failed to retrieve user keys'}), 500
+
+
+@app.route('/api/tools/hash', methods=['POST'])
+def calculate_hash():
+    """Calculate SHA-256 hash of provided text"""
+    try:
+        data = request.get_json()
+        text = data.get('text', '')
+        
+        # Calculate SHA-256 hash
+        import hashlib
+        hash_object = hashlib.sha256(text.encode('utf-8'))
+        hex_dig = hash_object.hexdigest()
+        
+        return jsonify({'hash': hex_dig}), 200
+        
+    except Exception as e:
+        print(f"Error in calculate_hash: {str(e)}")
+        return jsonify({'error': 'Failed to calculate hash'}), 500
+
+
 @app.route('/api/health', methods=['GET'])
 def health():
     """Health check endpoint"""
