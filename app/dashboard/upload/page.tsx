@@ -47,7 +47,7 @@ export default function UploadPage() {
     }
   }
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (!file) {
       toast.error('No file selected', {
         description: 'Please select a telemetry file to upload.',
@@ -62,19 +62,71 @@ export default function UploadPage() {
       return
     }
 
-    toast.success('Encryption Sequence Started', {
-      description: `Encrypting ${file.name} with AES-256-GCM...`,
-    })
+    const userStr = localStorage.getItem('f1_user')
+    const teamStr = localStorage.getItem('f1_team')
 
-    // Reset form after "upload"
-    setTimeout(() => {
-      toast.success('Upload Complete', {
-        description: 'Packet encrypted and stored securely.',
+    if (!userStr || !teamStr) {
+      toast.error('Authentication Error', { description: 'Please log in again.' })
+      return
+    }
+
+    try {
+      toast.message('Encryption Sequence Started', {
+        description: `Reading ${file.name} for encryption...`,
       })
-      setFile(null)
-      setClassification('')
-      setTargetTeam('')
-    }, 2000)
+
+      // Read file content
+      const content = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => resolve(e.target?.result as string)
+        reader.onerror = (e) => reject(e)
+        reader.readAsText(file)
+      })
+
+      toast.loading('Transmitting Encrypted Data...', {
+        description: 'Signing and uploading securely...',
+        duration: 20000, // Long duration, will be dismissed manually
+        id: 'upload-toast'
+      })
+
+      // Send to backend
+      const response = await fetch('http://localhost:5000/api/telemetry/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Name': userStr,
+          'X-User-Team': teamStr
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          content: content,
+          classification: classification,
+          target_team: targetTeam
+        })
+      })
+
+      toast.dismiss('upload-toast')
+
+      if (response.ok) {
+        const data = await response.json()
+        toast.success('Upload Complete', {
+          description: data.message || 'Packet encrypted and stored securely.',
+        })
+        // Reset form
+        setFile(null)
+        setClassification('')
+        setTargetTeam('')
+      } else {
+        const errorData = await response.json()
+        toast.error('Upload Failed', {
+          description: errorData.error || 'Server rejected the transmission.',
+        })
+      }
+    } catch (error) {
+      toast.dismiss('upload-toast')
+      console.error('Upload error:', error)
+      toast.error('Transmission Error', { description: 'Network connection failed.' })
+    }
   }
 
   return (
@@ -109,12 +161,11 @@ export default function UploadPage() {
                   relative border-2 border-dashed p-12
                   flex flex-col items-center justify-center gap-4
                   transition-all duration-200 cursor-pointer
-                  ${
-                    isDragging
-                      ? 'border-[#E10600] bg-[#E10600]/10'
-                      : file
-                        ? 'border-green-500 bg-green-500/5'
-                        : 'border-zinc-800 hover:border-[#E10600]'
+                  ${isDragging
+                    ? 'border-[#E10600] bg-[#E10600]/10'
+                    : file
+                      ? 'border-green-500 bg-green-500/5'
+                      : 'border-zinc-800 hover:border-[#E10600]'
                   }
                 `}
               >

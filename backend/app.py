@@ -17,36 +17,36 @@ from cryptography.hazmat.backends import default_backend
 app = Flask(__name__)
 CORS(app)
 
-# Configuration
+               
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'your-secret-key-change-this'  # Change in production
+app.config['SECRET_KEY'] = 'your-secret-key-change-this'                        
 
 db = SQLAlchemy(app)
 
-# User Model
+   #component 1         
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), nullable=False)
-    password = db.Column(db.String(200), nullable=False)  # In production, hash this!
+    password = db.Column(db.String(200), nullable=False)                             
     team = db.Column(db.String(50), nullable=False)
     totp_secret = db.Column(db.String(32), nullable=False)
-    public_key = db.Column(db.Text, nullable=False)  # RSA public key in PEM format
-    private_key = db.Column(db.Text, nullable=False)  # RSA private key in PEM format
+    public_key = db.Column(db.Text, nullable=False)                                
+    private_key = db.Column(db.Text, nullable=False)                                 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Composite unique constraint on username + team
+                                                    
     __table_args__ = (
         db.UniqueConstraint('username', 'team', name='unique_username_team'),
     )
 
     def __init__(self, username, password, team):
         self.username = username
-        self.password = password  # Remember to hash in production!
+        self.password = password                                   
         self.team = team
         self.totp_secret = pyotp.random_base32()
         
-        # Generate RSA key pair (2048-bit)
+                                          
         private_key = rsa.generate_private_key(
             public_exponent=65537,
             key_size=2048,
@@ -54,7 +54,7 @@ class User(db.Model):
         )
         public_key = private_key.public_key()
         
-        # Serialize keys to PEM format
+                                      
         self.private_key = private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
@@ -66,16 +66,16 @@ class User(db.Model):
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         ).decode('utf-8')
 
-# TelemetryData Model
+                     
 class TelemetryData(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(200), nullable=False)
     owner_team = db.Column(db.String(50), nullable=False)
-    classification = db.Column(db.String(20), nullable=False)  # 'Confidential' or 'Public'
-    content = db.Column(db.Text, nullable=True)  # Encrypted content (Base64)
-    nonce = db.Column(db.Text, nullable=True)  # GCM nonce (Base64)
-    encrypted_aes_key = db.Column(db.Text, nullable=True)  # AES key encrypted with owner's RSA public key (Base64)
-    digital_signature = db.Column(db.Text, nullable=True)  # RSA-SHA256 signature of plaintext (Base64)
+    classification = db.Column(db.String(20), nullable=False)                              
+    content = db.Column(db.Text, nullable=True)                              
+    nonce = db.Column(db.Text, nullable=True)                      
+    encrypted_aes_key = db.Column(db.Text, nullable=True)                                                          
+    digital_signature = db.Column(db.Text, nullable=True)                                              
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -88,12 +88,12 @@ class TelemetryData(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
-# SharedAccess Model
+                    
 class SharedAccess(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     file_id = db.Column(db.Integer, db.ForeignKey('telemetry_data.id'), nullable=False)
     shared_with_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    encrypted_key = db.Column(db.Text, nullable=False)  # File's key encrypted with recipient's public key
+    encrypted_key = db.Column(db.Text, nullable=False)                                                    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def to_dict(self):
@@ -105,7 +105,7 @@ class SharedAccess(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
-# AuditLog Model
+                
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
@@ -120,13 +120,13 @@ class AuditLog(db.Model):
             'action': self.action
         }
 
-# Create tables
+               
 with app.app_context():
-    # Drop all tables and recreate (only for development!)
+                                                          
     db.drop_all()
     db.create_all()
     
-    # Add default users with TOTP if they don't exist
+                                                     
     default_users = [
         {'username': 'fia', 'password': 'fia123', 'team': 'fia'},
         {'username': 'ferrari', 'password': 'ferrari123', 'team': 'ferrari'},
@@ -138,13 +138,13 @@ with app.app_context():
     for user_data in default_users:
         new_user = User(
             username=user_data['username'],
-            password=generate_password_hash(user_data['password']),  # Hash the password
+            password=generate_password_hash(user_data['password']),                     
             team=user_data['team']
         )
         db.session.add(new_user)
     
     db.session.commit()
-
+#component 1.2
 def generate_qr_code_base64(secret, username, issuer='F1 Telemetry'):
     """Generate a QR code for TOTP setup"""
     totp = pyotp.TOTP(secret)
@@ -153,7 +153,7 @@ def generate_qr_code_base64(secret, username, issuer='F1 Telemetry'):
         issuer_name=issuer
     )
     
-    # Create QR code
+                    
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -163,10 +163,10 @@ def generate_qr_code_base64(secret, username, issuer='F1 Telemetry'):
     qr.add_data(provisioning_uri)
     qr.make(fit=True)
     
-    # Create image with white background
+                                        
     img = qr.make_image(fill_color="black", back_color="white")
     
-    # Convert to base64
+                       
     buffer = io.BytesIO()
     img.save(buffer, format='PNG')
     buffer.seek(0)
@@ -189,11 +189,11 @@ def encrypt_aes_gcm(plaintext, rsa_public_key_pem):
             'nonce': Base64-encoded GCM nonce
         }
     """
-    # Generate random 32-byte AES key and 12-byte nonce
+                                                       
     aes_key = os.urandom(32)
     nonce = os.urandom(12)
     
-    # Encrypt plaintext using AES-GCM
+                                     
     cipher = Cipher(
         algorithms.AES(aes_key),
         modes.GCM(nonce),
@@ -202,25 +202,25 @@ def encrypt_aes_gcm(plaintext, rsa_public_key_pem):
     encryptor = cipher.encryptor()
     ciphertext = encryptor.update(plaintext.encode('utf-8')) + encryptor.finalize()
     
-    # Get the authentication tag
+                                
     tag = encryptor.tag
     
-    # Combine ciphertext and tag
+                                
     ciphertext_with_tag = ciphertext + tag
     
-    # Load RSA public key
+                         
     public_key = serialization.load_pem_public_key(
         rsa_public_key_pem.encode('utf-8'),
         backend=default_backend()
     )
     
-    # Encrypt AES key using RSA with PKCS1v15 padding
+                                                     
     encrypted_aes_key = public_key.encrypt(
         aes_key,
         padding.PKCS1v15()
     )
     
-    # Return Base64-encoded values
+                                  
     return {
         'ciphertext': base64.b64encode(ciphertext_with_tag).decode('utf-8'),
         'encrypted_key': base64.b64encode(encrypted_aes_key).decode('utf-8'),
@@ -239,14 +239,14 @@ def sign_data(private_key_pem, data):
     Returns:
         str: Base64-encoded signature
     """
-    # Load private key
+                      
     private_key = serialization.load_pem_private_key(
         private_key_pem.encode('utf-8'),
         password=None,
         backend=default_backend()
     )
     
-    # Sign the data using RSA-SHA256 with PSS padding
+                                                     
     signature = private_key.sign(
         data.encode('utf-8'),
         padding.PSS(
@@ -256,7 +256,7 @@ def sign_data(private_key_pem, data):
         hashes.SHA256()
     )
     
-    # Return Base64-encoded signature
+                                     
     return base64.b64encode(signature).decode('utf-8')
 
 
@@ -273,16 +273,16 @@ def verify_signature(public_key_pem, data, signature_b64):
         bool: True if signature is valid, False otherwise
     """
     try:
-        # Load public key
+                         
         public_key = serialization.load_pem_public_key(
             public_key_pem.encode('utf-8'),
             backend=default_backend()
         )
         
-        # Decode signature
+                          
         signature = base64.b64decode(signature_b64)
         
-        # Verify signature using RSA-SHA256 with PSS padding
+                                                            
         public_key.verify(
             signature,
             data.encode('utf-8'),
@@ -318,7 +318,7 @@ def generate_token(user_id, username):
     }
     return jwt.encode(payload, app.config['SECRET_KEY'], algorithm='HS256')
 
-# Routes
+        
 
 @app.route('/api/register', methods=['POST'])
 def register():
@@ -331,27 +331,27 @@ def register():
     if not all([team, password]):
         return jsonify({'error': 'Missing required fields'}), 400
     
-    # Username is the team name
+                               
     username = team
     
-    # Check if user already exists
+                                  
     existing_user = User.query.filter_by(username=username, team=team).first()
     if existing_user:
         return jsonify({'error': 'Team already registered'}), 409
     
-    # Create new user with TOTP secret
+                                      
     new_user = User(username=username, password=generate_password_hash(password), team=team)
     db.session.add(new_user)
     db.session.commit()
     
-    # Generate QR code
+                      
     qr_code = generate_qr_code_base64(new_user.totp_secret, username, f'F1 Telemetry - {team.upper()}')
     
     return jsonify({
         'success': True,
         'message': 'Team registered successfully',
         'qr_code': qr_code,
-        'secret': new_user.totp_secret  # Only for debugging, remove in production
+        'secret': new_user.totp_secret                                            
     }), 201
 
 @app.route('/api/login', methods=['POST'])
@@ -365,17 +365,17 @@ def login():
     if not all([username, password]):
         return jsonify({'error': 'Missing credentials'}), 400
     
-    # Find user (username is the team name)
+                                           
     user = User.query.filter_by(username=username, team=username).first()
-    
+    #component 1
     if not user or not check_password_hash(user.password, password):
         log_audit_event(username, 'Failed Login Attempt')
         return jsonify({'error': 'Invalid credentials'}), 401
     
-    # Log successful login
+                          
     log_audit_event(username, 'User Logged In')
     
-    # Store user info in session (simplified, use proper session management in production)
+                                                                                          
     return jsonify({
         'success': True,
         'mfa_required': True,
@@ -394,32 +394,32 @@ def verify_2fa():
     team = data.get('team')
     code = data.get('code')
     
-    print(f"Verification request - user_id: {user_id}, code: {code}")  # Debug log
+    print(f"Verification request - user_id: {user_id}, code: {code}")             
     
     if not all([user_id, code]):
         return jsonify({'error': 'Missing verification data'}), 400
     
-    # Find user
+               
     user = User.query.get(user_id)
     
     if not user:
-        print(f"User not found with id: {user_id}")  # Debug log
+        print(f"User not found with id: {user_id}")             
         return jsonify({'error': 'User not found'}), 404
     
-    print(f"User found - username: {user.username}, team: {user.team}, secret: {user.totp_secret}")  # Debug log
+    print(f"User found - username: {user.username}, team: {user.team}, secret: {user.totp_secret}")             
     
-    # Verify TOTP code
+                      
     totp = pyotp.TOTP(user.totp_secret)
     current_code = totp.now()
-    print(f"Expected code: {current_code}, Received code: {code}")  # Debug log
+    print(f"Expected code: {current_code}, Received code: {code}")             
     
-    is_valid = totp.verify(code, valid_window=1)  # Allow 1 time step before/after
+    is_valid = totp.verify(code, valid_window=1)                                  
     
     if not is_valid:
-        print(f"Code verification failed")  # Debug log
+        print(f"Code verification failed")             
         return jsonify({'error': 'Invalid verification code'}), 401
     
-    # Generate JWT token
+                        
     token = generate_token(user.id, user.username)
     
     return jsonify({
@@ -443,13 +443,13 @@ def get_qr_code():
     if not team:
         return jsonify({'error': 'Missing team'}), 400
     
-    # Username is team name
+                           
     user = User.query.filter_by(username=team, team=team).first()
     
     if not user:
         return jsonify({'error': 'Team not found'}), 404
     
-    # Generate QR code
+                      
     qr_code = generate_qr_code_base64(user.totp_secret, team, f'F1 Telemetry - {team.upper()}')
     
     return jsonify({
@@ -461,10 +461,10 @@ def get_qr_code():
 def seed_telemetry():
     """Seed the database with exactly 3 test telemetry objects (encrypted)"""
     try:
-        # Wipe all existing telemetry data
+                                          
         TelemetryData.query.delete()
         
-        # Define test data with plaintext content
+                                                 
         test_data = [
             {
                 'filename': 'ferrari_strategy_monza.json',
@@ -486,20 +486,20 @@ def seed_telemetry():
             }
         ]
         
-        # Encrypt and insert each file
+                                      
         for data in test_data:
-            # Get owner's public key
+                                    
             owner_user = User.query.filter_by(team=data['owner_team']).first()
             if not owner_user:
                 raise Exception(f"Owner user not found for team: {data['owner_team']}")
             
-            # Sign the plaintext using owner's private key
+                                                          
             signature = sign_data(owner_user.private_key, data['plaintext'])
             
-            # Encrypt content using AES-GCM
+                                           
             encrypted_data = encrypt_aes_gcm(data['plaintext'], owner_user.public_key)
             
-            # Create telemetry object with encrypted data and signature
+                                                                       
             telemetry_obj = TelemetryData(
                 filename=data['filename'],
                 owner_team=data['owner_team'],
@@ -513,7 +513,7 @@ def seed_telemetry():
         
         db.session.commit()
         
-        # Log database seeding
+                              
         log_audit_event('System', 'Database Seeded')
         
         return jsonify({
@@ -533,42 +533,42 @@ def seed_telemetry():
 def get_telemetry():
     """Get telemetry data with access control based on user's team"""
     try:
-        # Extract user identity from headers
+                                            
         user_team = request.headers.get('X-User-Team', '').lower()
         user_name = request.headers.get('X-User-Name', '')
         
         if not user_team:
             return jsonify({'error': 'Missing user team header'}), 400
         
-        print(f"Telemetry access request - User: {user_name}, Team: {user_team}")  # Debug log
+        print(f"Telemetry access request - User: {user_name}, Team: {user_team}")             
         
-        # Get current user
+                          
         current_user = User.query.filter_by(username=user_name, team=user_team).first()
         
-        # The Bouncer Logic
+                           
         if user_team == 'fia':
-            # FIA Admin: Return ALL files
+                                         
             telemetry_files = TelemetryData.query.all()
             print(f"FIA access granted - returning {len(telemetry_files)} files")
         else:
-            # Team Principal: Return their team's files + Public files + Shared files
+                                                                                     
             if current_user:
-                # Get file IDs that have been shared with this user
+                                                                   
                 shared_file_ids = db.session.query(SharedAccess.file_id).filter(
                     SharedAccess.shared_with_user_id == current_user.id
                 ).all()
                 shared_file_ids = [fid[0] for fid in shared_file_ids]
                 
-                # Query: Own team's files OR Public files OR Shared files
+                #component 2.1                                                         
                 telemetry_files = TelemetryData.query.filter(
                     db.or_(
-                        TelemetryData.owner_team == user_team,  # Own team's files
-                        TelemetryData.classification == 'Public',  # Public files
-                        TelemetryData.id.in_(shared_file_ids) if shared_file_ids else False  # Shared files
+                        TelemetryData.owner_team == user_team,                    
+                        TelemetryData.classification == 'Public',                
+                        TelemetryData.id.in_(shared_file_ids) if shared_file_ids else False                
                     )
                 ).all()
             else:
-                # Fallback if user not found
+                                            
                 telemetry_files = TelemetryData.query.filter(
                     db.or_(
                         TelemetryData.owner_team == user_team,
@@ -577,10 +577,10 @@ def get_telemetry():
                 ).all()
             print(f"Team {user_team} access - returning {len(telemetry_files)} files")
         
-        # Log telemetry access
+                              
         log_audit_event(user_name if user_name else user_team, 'Accessed Telemetry Repository')
         
-        # Convert to dict format
+                                
         result = [file.to_dict() for file in telemetry_files]
         
         return jsonify(result), 200
@@ -591,6 +591,114 @@ def get_telemetry():
             'error': 'Failed to retrieve telemetry data',
             'details': str(e)
         }), 500
+
+
+@app.route('/api/telemetry/upload', methods=['POST'])
+def upload_telemetry():
+    """Upload, sign, and encrypt a new telemetry file"""
+    try:
+        data = request.get_json()
+        
+        filename = data.get('filename')
+        content = data.get('content')
+        classification = data.get('classification')
+        target_team = data.get('target_team', '').lower()
+        
+                                                             
+        username = request.headers.get('X-User-Name')
+        team = request.headers.get('X-User-Team').lower()
+        
+        if not all([filename, content, classification, username, team]):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        print(f"Upload request - File: {filename}, User: {username}, Team: {team}")
+        
+                                           
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+            
+                                         
+                                                                    
+        signature = sign_data(user.private_key, content)
+        
+                                                  
+                                                                                    
+        encrypted_data = encrypt_aes_gcm(content, user.public_key)
+        
+                             
+        new_file = TelemetryData(
+            filename=filename,
+            owner_team=team,
+            classification=classification,
+            content=encrypted_data['ciphertext'],
+            nonce=encrypted_data['nonce'],
+            encrypted_aes_key=encrypted_data['encrypted_key'],
+            digital_signature=signature
+        )
+        
+        db.session.add(new_file)
+        db.session.flush()                                
+        
+                                                        
+        shared_msg = ""
+        if target_team:
+            recipient_user = User.query.filter_by(team=target_team).first()
+            if recipient_user:
+                                                                               
+                                                                                        
+                private_key = serialization.load_pem_private_key(
+                    user.private_key.encode('utf-8'),
+                    password=None,
+                    backend=default_backend()
+                )
+                
+                                                                
+                aes_key = private_key.decrypt(
+                    base64.b64decode(encrypted_data['encrypted_key']),
+                    padding.PKCS1v15()
+                )
+                
+                                                            
+                recipient_public_key = serialization.load_pem_public_key(
+                    recipient_user.public_key.encode('utf-8'),
+                    backend=default_backend()
+                )
+                
+                shared_encrypted_key = recipient_public_key.encrypt(
+                    aes_key,
+                    padding.PKCS1v15()
+                )
+                
+                                            
+                share = SharedAccess(
+                    file_id=new_file.id,
+                    shared_with_user_id=recipient_user.id,
+                    encrypted_key=base64.b64encode(shared_encrypted_key).decode('utf-8')
+                )
+                db.session.add(share)
+                shared_msg = f" and shared with {target_team}"
+                
+                                 
+                log_audit_event(username, f'Shared {filename} with {target_team}')
+            else:
+                print(f"Warning: Target team {target_team} not found for sharing")
+
+        db.session.commit()
+        
+                      
+        log_audit_event(username, f'Uploaded file: {filename}{shared_msg}')
+        
+        return jsonify({
+            'success': True,
+            'file_id': new_file.id,
+            'message': f'File encrypted and uploaded successfully{shared_msg}'
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in upload_telemetry: {str(e)}")
+        return jsonify({'error': 'Failed to upload file'}), 500
 
 
 @app.route('/api/telemetry/share', methods=['POST'])
@@ -608,7 +716,7 @@ def share_telemetry():
         
         print(f"Share request - File: {file_id}, From: {sender_username}, To: {recipient_team}")
         
-        # 1. Authorization: Verify sender owns the file
+                                                       
         telemetry_file = TelemetryData.query.get(file_id)
         if not telemetry_file:
             return jsonify({'error': 'File not found'}), 404
@@ -620,12 +728,12 @@ def share_telemetry():
         if telemetry_file.owner_team != sender_user.team:
             return jsonify({'error': 'Unauthorized: You do not own this file'}), 403
         
-        # 2. Recipient Lookup: Find a user from the recipient team
+                                                                  
         recipient_user = User.query.filter_by(team=recipient_team).first()
         if not recipient_user:
             return jsonify({'error': f'No user found for team {recipient_team}'}), 404
         
-        # 3. Check if already shared
+                                    
         existing_share = SharedAccess.query.filter_by(
             file_id=file_id,
             shared_with_user_id=recipient_user.id
@@ -633,25 +741,49 @@ def share_telemetry():
         if existing_share:
             return jsonify({'error': 'File already shared with this team'}), 409
         
-        # 4. RSA Encryption: Encrypt dummy AES key with recipient's public key
-        dummy_aes_key = "AES_KEY_SECRET_123"
-        
-        # Load recipient's public key
+        # 4. RSA Encryption: Secure handshake
+        # Step A: Unwrap (Decrypt) the original AES key using Sender's Private Key
+        try:
+            sender_private_key = serialization.load_pem_private_key(
+                sender_user.private_key.encode('utf-8'),
+                password=None,
+                backend=default_backend()
+            )
+            
+            # The file's key is encrypted with the Owner's Public Key.
+            # Since we verified sender is owner/authorized, we use their private key.
+            # (Note: If sender is NOT owner but has shared access, we'd need to use the SharedAccess key.
+            # But earlier check ensures owner_team == sender_team, so sender has access to owner's key or is owner.)
+            # Wait, if multiple users are in a team, they share the team's key pair? 
+            # The User model has individual keys, but the 'team' concept implies shared access?
+            # Looking at User model: "username" seems to be user/team name alias in this simplified app.
+            
+            original_encrypted_key = base64.b64decode(telemetry_file.encrypted_aes_key)
+            
+            raw_aes_key = sender_private_key.decrypt(
+                original_encrypted_key,
+                padding.PKCS1v15()
+            )
+            
+        except Exception as e:
+            print(f"Key Unwrap Failed: {str(e)}")
+            return jsonify({'error': 'Failed to decrypt source file key. Sender key mismatch?'}), 500
+
+        # Step B: Wrap (Encrypt) the AES key for the Recipient
         recipient_public_key = serialization.load_pem_public_key(
             recipient_user.public_key.encode('utf-8'),
             backend=default_backend()
         )
-        
-        # Encrypt using RSA with PKCS1v15 padding
+        #component 2.2 
         encrypted_key = recipient_public_key.encrypt(
-            dummy_aes_key.encode('utf-8'),
+            raw_aes_key,
             padding.PKCS1v15()
         )
         
         # Base64 encode for storage
         encrypted_key_b64 = base64.b64encode(encrypted_key).decode('utf-8')
         
-        # 5. Save to SharedAccess table
+                                       
         new_share = SharedAccess(
             file_id=file_id,
             shared_with_user_id=recipient_user.id,
@@ -662,7 +794,7 @@ def share_telemetry():
         
         print(f"✓ File {file_id} shared with {recipient_team} (User ID: {recipient_user.id})")
         
-        # Log sharing action
+                            
         log_audit_event(sender_username, f'Shared {telemetry_file.filename} with {recipient_team}')
         
         return jsonify({
@@ -693,17 +825,17 @@ def decrypt_telemetry():
         
         print(f"Decrypt request - File: {file_id}, User: {username}")
         
-        # 1. Get the telemetry file
+                                   
         telemetry_file = TelemetryData.query.get(file_id)
         if not telemetry_file:
             return jsonify({'error': 'File not found'}), 404
         
-        # 2. Get the requesting user
+                                    
         user = User.query.filter_by(username=username).first()
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
-        # 3. Authorization: Check if user is owner OR has shared access
+                                                                       
         is_owner = telemetry_file.owner_team == user.team
         shared_access = None
         
@@ -716,7 +848,7 @@ def decrypt_telemetry():
             if not shared_access:
                 return jsonify({'error': 'Unauthorized: You do not have access to this file'}), 403
         
-        # 4. Get the encrypted AES key
+                                      
         if is_owner:
             encrypted_aes_key_b64 = telemetry_file.encrypted_aes_key
             print(f"Owner access - using file's encrypted key")
@@ -727,17 +859,17 @@ def decrypt_telemetry():
         if not encrypted_aes_key_b64:
             return jsonify({'error': 'Encrypted key not found'}), 500
         
-        # 5. Decrypt the AES key using user's RSA private key
+                                                             
         encrypted_aes_key = base64.b64decode(encrypted_aes_key_b64)
         
-        # Load user's private key
+                                 
         private_key = serialization.load_pem_private_key(
             user.private_key.encode('utf-8'),
             password=None,
             backend=default_backend()
         )
         
-        # Decrypt AES key
+                         
         try:
             aes_key = private_key.decrypt(
                 encrypted_aes_key,
@@ -747,15 +879,15 @@ def decrypt_telemetry():
             print(f"RSA decryption failed: {str(e)}")
             return jsonify({'error': 'Failed to decrypt AES key: Invalid RSA key'}), 500
         
-        # 6. Decrypt the content using AES-GCM
+                                              
         ciphertext_with_tag = base64.b64decode(telemetry_file.content)
         nonce = base64.b64decode(telemetry_file.nonce)
         
-        # Split ciphertext and tag (last 16 bytes are the tag)
+                                                              
         ciphertext = ciphertext_with_tag[:-16]
         tag = ciphertext_with_tag[-16:]
         
-        # Create cipher and decrypt
+                                   
         cipher = Cipher(
             algorithms.AES(aes_key),
             modes.GCM(nonce, tag),
@@ -772,7 +904,7 @@ def decrypt_telemetry():
         
         print(f"✓ File {file_id} decrypted successfully for {username}")
         
-        # Log decryption action
+                               
         log_audit_event(username, f'Decrypted content of {telemetry_file.filename}')
         
         return jsonify({
@@ -802,17 +934,17 @@ def verify_telemetry():
         
         print(f"Verify request - File: {file_id}, User: {username}")
         
-        # 1. Get the telemetry file
+                                   
         telemetry_file = TelemetryData.query.get(file_id)
         if not telemetry_file:
             return jsonify({'error': 'File not found'}), 404
         
-        # 2. Get the requesting user
+                                    
         user = User.query.filter_by(username=username).first()
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
-        # 3. Authorization: Check if user is owner OR has shared access
+                                                                       
         is_owner = telemetry_file.owner_team == user.team
         shared_access = None
         
@@ -825,7 +957,7 @@ def verify_telemetry():
             if not shared_access:
                 return jsonify({'error': 'Unauthorized: You do not have access to this file'}), 403
         
-        # 4. Get the encrypted AES key
+                                      
         if is_owner:
             encrypted_aes_key_b64 = telemetry_file.encrypted_aes_key
         else:
@@ -834,7 +966,7 @@ def verify_telemetry():
         if not encrypted_aes_key_b64:
             return jsonify({'error': 'Encrypted key not found'}), 500
         
-        # 5. Decrypt the AES key using user's RSA private key
+                                                             
         encrypted_aes_key = base64.b64decode(encrypted_aes_key_b64)
         
         private_key = serialization.load_pem_private_key(
@@ -852,7 +984,7 @@ def verify_telemetry():
             print(f"RSA decryption failed: {str(e)}")
             return jsonify({'error': 'Failed to decrypt AES key'}), 500
         
-        # 6. Decrypt the content using AES-GCM
+                                              
         ciphertext_with_tag = base64.b64decode(telemetry_file.content)
         nonce = base64.b64decode(telemetry_file.nonce)
         
@@ -873,12 +1005,12 @@ def verify_telemetry():
             print(f"AES-GCM decryption failed: {str(e)}")
             return jsonify({'error': 'Failed to decrypt content'}), 500
         
-        # 7. Get owner's public key for signature verification
+                                                              
         owner_user = User.query.filter_by(team=telemetry_file.owner_team).first()
         if not owner_user:
             return jsonify({'error': 'Owner user not found'}), 500
         
-        # 8. Verify the digital signature
+                                         
         if not telemetry_file.digital_signature:
             return jsonify({'error': 'No digital signature found'}), 500
         
@@ -890,7 +1022,7 @@ def verify_telemetry():
         
         print(f"✓ Signature verification for file {file_id}: {'VALID' if is_valid else 'INVALID'}")
         
-        # Log verification action
+                                 
         if is_valid:
             log_audit_event(username, f'Verified integrity of {telemetry_file.filename}')
         
@@ -911,13 +1043,13 @@ def verify_telemetry():
 def get_dashboard_stats():
     """Get dashboard statistics and recent audit logs"""
     try:
-        # Count active nodes (users)
+                                    
         node_count = User.query.count()
         
-        # Count encrypted files
+                               
         encrypted_count = TelemetryData.query.count()
         
-        # Get last 10 audit logs
+                                
         recent_logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(10).all()
         
         return jsonify({
@@ -938,7 +1070,7 @@ def get_dashboard_stats():
 def get_audit_logs():
     """Get recent audit logs for the logs page"""
     try:
-        # Get last 100 audit logs
+                                 
         logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(100).all()
         return jsonify([log.to_dict() for log in logs]), 200
     except Exception as e:
@@ -983,7 +1115,7 @@ def calculate_hash():
         data = request.get_json()
         text = data.get('text', '')
         
-        # Calculate SHA-256 hash
+                                
         import hashlib
         hash_object = hashlib.sha256(text.encode('utf-8'))
         hex_dig = hash_object.hexdigest()
